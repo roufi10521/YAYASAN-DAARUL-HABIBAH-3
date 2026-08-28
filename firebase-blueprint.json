@@ -1,0 +1,49 @@
+{
+  "entities": {
+    "accounts": {
+      "title": "Chart of Accounts",
+      "description": "Daftar Bagan Akun Standar COA Yayasan dan Sekolah",
+      "properties": {
+        "code": { "type": "string", "description": "Kode Akun" },
+        "name": { "type": "string", "description": "Nama Akun" },
+        "category": { "type": "string", "description": "Kategori COA (ASET_LANCAR, BEBAN, dll)" },
+        "subCategory": { "type": "string", "description": "Sub Kategori" },
+        "balance": { "type": "number", "description": "Saldo Terkini" }
+      },
+      "required": ["code", "name", "category"]
+    },
+    "journalEntries": {
+      "title": "Journal Entries",
+      "description": "Transaksi Jurnal Umum & Buku Kas Umum",
+      "properties": {
+        "date": { "type": "string", "description": "Tanggal Transaksi" },
+        "voucherNo": { "type": "string", "description": "Nomor Bukti Voucher" },
+        "description": { "type": "string", "description": "Keterangan" },
+        "debitAccountCode": { "type": "string", "description": "Kode Akun Debet" },
+        "creditAccountCode": { "type": "string", "description": "Kode Akun Kredit" },
+        "amount": { "type": "number", "description": "Nominal Transaksi" }
+      },
+      "required": ["date", "voucherNo", "amount"]
+    },
+    "students": {
+      "title": "Students",
+      "description": "Data Siswa & Tagihan SPP",
+      "properties": {
+        "nis": { "type": "string", "description": "Nomor Induk Siswa" },
+        "name": { "type": "string", "description": "Nama Siswa" },
+        "grade": { "type": "string", "description": "Kelas" },
+        "sppAmount": { "type": "number", "description": "Nominal SPP" }
+      },
+      "required": ["nis", "name", "grade"]
+    },
+    "foundationProfile": {
+      "title": "Foundation Profile",
+      "description": "Informasi Yayasan dan Lembaga Pendidikan",
+      "properties": {
+        "foundationName": { "type": "string", "description": "Nama Yayasan" },
+        "schoolName": { "type": "string", "description": "Nama Sekolah (SDIT El Fatah)" },
+        "domain": { "type": "string", "description": "Domain Resmi (sdit-elfatah.org)" }
+      }
+    }
+  }
+}
