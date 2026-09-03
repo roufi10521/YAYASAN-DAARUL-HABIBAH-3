@@ -1,2161 +1,1953 @@
-import ReactDefault from "react";
+import ReactModule, { useState as fallbackUseState, useMemo as fallbackUseMemo, useRef as fallbackUseRef } from "react";
 import * as XLSX from "xlsx";
-
-const getActiveReact = () => (typeof window !== "undefined" && window.__AppReact) ? window.__AppReact : ReactDefault;
-const useState = (init) => getActiveReact().useState(init);
-const useMemo = (factory, deps) => getActiveReact().useMemo(factory, deps);
-const useEffect = (effect, deps) => getActiveReact().useEffect(effect, deps);
-const useCallback = (cb, deps) => getActiveReact().useCallback(cb, deps);
-const useRef = (initial) => getActiveReact().useRef(initial);
-
 import {
-  Award,
   Trophy,
-  Star,
-  Users,
+  Award,
+  Medal,
   CheckCircle2,
   TrendingUp,
-  DollarSign,
-  Calendar,
-  Search,
-  Filter,
-  Plus,
-  Edit2,
-  Trash2,
-  Printer,
   Download,
   Upload,
   FileSpreadsheet,
-  BookOpen,
-  MessageSquare,
-  Target,
-  Clock,
-  Sparkles,
-  X,
+  Printer,
+  Edit3,
+  Trash2,
+  Plus,
+  Search,
+  Filter,
+  Users,
+  ShieldCheck,
   ChevronRight,
+  ChevronLeft,
+  Info,
+  Calendar,
+  Layers,
+  Sparkles,
   FileText,
   AlertCircle,
-  HelpCircle,
-  BarChart3,
-  ShieldCheck,
-  Zap,
-  GraduationCap,
-  RefreshCw,
+  Copy,
+  RotateCcw,
   Check,
-  Layers,
-  Info,
-  Clipboard,
-  FileCheck,
-  Sliders,
-  CheckCircle,
-  FolderOpen
+  Building,
+  UserCheck,
+  X,
+  ExternalLink,
+  Eye
 } from "lucide-react";
+import {
+  OFFICIAL_KPI_INDICATORS,
+  INITIAL_OFFICIAL_EVALUATIONS,
+  calculateOfficialKpiScore,
+  getKpiGradeInfo,
+  formatCurrency,
+  formatDate
+} from "./kpiData";
 
-// Standar Indikator & Bobot Baku Lampiran Excel Yayasan SDIT EL-FATAH
-export const KPI_INDICATOR_STANDARDS = [
-  {
-    id: "ind-1",
-    code: "IND-01",
-    name: "Jurnal Mengajar & Elemen Kerja Guru",
-    description: "Memenuhi seluruh elemen kerja guru yang tertulis dalam jurnal harian, modul ajar, dan administrasi kelas.",
-    weight: 25,
-    weightPercent: "25%",
-    weightDecimal: 0.25,
-    icon: BookOpen,
-    color: "from-blue-500 to-indigo-600",
-    rubric: [
-      { score: "90 - 100", label: "Sangat Lengkap, modul ajar terbit tepat waktu & jurnal terisi 100%" },
-      { score: "80 - 89", label: "Lengkap, jurnal terisi konsisten namun ada revisi minor modul" },
-      { score: "70 - 79", label: "Cukup lengkap, keterlambatan jurnal 1-2 kali per bulan" },
-      { score: "< 70", label: "Kurang lengkap, perlu pembinaan kurikulum yayasan" }
-    ]
-  },
-  {
-    id: "ind-2",
-    code: "IND-02",
-    name: "Komunikasi Prestasi Anak & Orang Tua",
-    description: "Membangun komunikasi proaktif dengan anak didik dan orang tua/wali murid terkait capaian belajar & akhlak.",
-    weight: 20,
-    weightPercent: "20%",
-    weightDecimal: 0.20,
-    icon: MessageSquare,
-    color: "from-emerald-500 to-teal-600",
-    rubric: [
-      { score: "90 - 100", label: "Sangat Intensif, fast-response, konsultasi wali murid berkala, mutabaah aktif" },
-      { score: "80 - 89", label: "Responsif, update catatan berkala kepada wali murid" },
-      { score: "70 - 79", label: "Cukup komunikatif, merespons hanya ketika ditanya wali murid" },
-      { score: "< 70", label: "Pasif, keluhan dari wali murid terkait update prestasi" }
-    ]
-  },
-  {
-    id: "ind-3",
-    code: "IND-03",
-    name: "Capaian Kompetensi Kurikulum Sekolah",
-    description: "Memenuhi ketercapaian target kompetensi, daya serap siswa, dan indikator mutu akademik yang dipersyaratkan.",
-    weight: 30,
-    weightPercent: "30%",
-    weightDecimal: 0.30,
-    icon: Target,
-    color: "from-amber-500 to-orange-600",
-    rubric: [
-      { score: "90 - 100", label: "Ketuntasan siswa >= 95%, nilai rata-rata rombel di atas standar target yayasan" },
-      { score: "80 - 89", label: "Ketuntasan siswa 85% - 94%, target materi tercapai tepat waktu" },
-      { score: "70 - 79", label: "Ketuntasan siswa 75% - 84%, beberapa remedial diperlukan" },
-      { score: "< 70", label: "Ketuntasan siswa < 75%, perlu supervisi metode pengajaran" }
-    ]
-  },
-  {
-    id: "ind-4",
-    code: "IND-04",
-    name: "Kehadiran Guru & Kedisiplinan",
-    description: "Presensi kehadiran tepat waktu, kedisiplinan mengajar di kelas, dan keikutsertaan apel/kegiatan yayasan.",
-    weight: 10,
-    weightPercent: "10%",
-    weightDecimal: 0.10,
-    icon: Clock,
-    color: "from-purple-500 to-pink-600",
-    rubric: [
-      { score: "90 - 100", label: "Kehadiran 98% - 100%, nihil terlambat, teladan kedisiplinan" },
-      { score: "80 - 89", label: "Kehadiran 95% - 97%, izin kedinasan terkonfirmasi" },
-      { score: "70 - 79", label: "Kehadiran 90% - 94%, terdapat 1-2 kali keterlambatan" },
-      { score: "< 70", label: "Kehadiran < 90%, pelanggaran disiplin jam masuk" }
-    ]
-  },
-  {
-    id: "ind-5",
-    code: "IND-05",
-    name: "Improvisasi & Inovasi KBM",
-    description: "Kreativitas menciptakan media ajar interaktif, alat peraga, variasi metode belajar, dan suasana kelas menyenangkan.",
-    weight: 15,
-    weightPercent: "15%",
-    weightDecimal: 0.15,
-    icon: Sparkles,
-    color: "from-rose-500 to-red-600",
-    rubric: [
-      { score: "90 - 100", label: "Sangat Inovatif, menciptakan alat peraga unik, game edukasi, proyek interaktif" },
-      { score: "80 - 89", label: "Inovatif, rutin menggunakan media pembelajaran digital/visual" },
-      { score: "70 - 79", label: "Cukup, sesekali menggunakan variasi metode ajar" },
-      { score: "< 70", label: "Monoton, pembelajaran ceramah konvensional" }
-    ]
-  }
-];
+export const initialKpiEvaluations = INITIAL_OFFICIAL_EVALUATIONS;
+export const KPI_INDICATOR_STANDARDS = OFFICIAL_KPI_INDICATORS;
 
-// Helper currency formatting
-export const formatCurrency = (num) => {
-  return "Rp " + Number(num || 0).toLocaleString("id-ID");
-};
+export default function KpiEvaluationModule(props = {}) {
+  const ActiveReact = props?.React || (typeof window !== "undefined" && window.__AppReact) || ReactModule;
+  const useState = ActiveReact.useState || fallbackUseState;
+  const useMemo = ActiveReact.useMemo || fallbackUseMemo;
+  const useRef = ActiveReact.useRef || fallbackUseRef;
 
-// Helper date formatting
-export const formatDate = (dateStr) => {
-  if (!dateStr) return "-";
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric"
-    });
-  } catch (e) {
-    return dateStr;
-  }
-};
+  const {
+    kpiList: externalKpiList,
+    teachers = [],
+    currentRole = "KEPALA_SEKOLAH",
+    onAddKpi,
+    onUpdateKpi,
+    onDeleteKpi,
+    onBulkSetKpi,
+    foundationProfile
+  } = props;
+  // Local fallback if parent state is empty
+  const [localKpiList, setLocalKpiList] = useState(() => {
+    if (externalKpiList && externalKpiList.length > 0) return externalKpiList;
+    try {
+      const saved = localStorage.getItem("yayasan_kpis_v2");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_OFFICIAL_EVALUATIONS;
+  });
 
-// Standar Nilai Baku Awal Yayasan
-export const initialKpiEvaluations = [
-  {
-    id: "kpi-1",
-    teacherId: "tch-1",
-    teacherName: "Uyat Sukriyati, S.Pd",
-    teacherNip: "1991051005",
-    teacherRole: "Guru Wali Kelas 1",
-    rombel: "Kelas 1 (Fathurrahman)",
-    period: "Semester Ganjil 2026/2027",
-    academicYear: "2026/2027",
-    scoreJournal: 96,
-    scoreCommunication: 95,
-    scoreCompetence: 94,
-    scoreAttendance: 100,
-    scoreImprovisation: 94,
-    totalScore: 95.3,
-    grade: "Sangat Memuaskan",
-    rewardStatus: "DISETUJUI_YAYASAN",
-    rewardTitle: "Juara 1 Guru Teladan & Berprestasi",
-    rewardDetail: "Uang Pembinaan Yayasan Rp 1.500.000 + Piagam Penghargaan Resmi + Prioritas Tunjangan",
-    rewardAmount: 1500000,
-    evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
-    acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
-    evaluationDate: "2026-12-18",
-    notes: "Prestasi luar biasa dalam pendampingan adaptasi siswa baru kelas 1, jurnal 100% disiplin dan komunikasi orang tua sangat harmonis."
-  },
-  {
-    id: "kpi-2",
-    teacherId: "tch-2",
-    teacherName: "Iis Rohmayanti, S.Pd",
-    teacherNip: "1990041502",
-    teacherRole: "Guru Wali Kelas 4",
-    rombel: "Kelas 4 (Ibnu Khaldun)",
-    period: "Semester Ganjil 2026/2027",
-    academicYear: "2026/2027",
-    scoreJournal: 94,
-    scoreCommunication: 92,
-    scoreCompetence: 96,
-    scoreAttendance: 98,
-    scoreImprovisation: 92,
-    totalScore: 94.3,
-    grade: "Sangat Memuaskan",
-    rewardStatus: "DISETUJUI_YAYASAN",
-    rewardTitle: "Juara 2 Guru Inovatif & Berprestasi",
-    rewardDetail: "Uang Pembinaan Yayasan Rp 1.000.000 + Piagam Penghargaan Resmi",
-    rewardAmount: 1000000,
-    evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
-    acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
-    evaluationDate: "2026-12-18",
-    notes: "Daya serap siswa sangat tinggi, penerapan metode saintifik dan literasi digital di kelas 4 berjalan sangat sukses."
-  },
-  {
-    id: "kpi-3",
-    teacherId: "tch-3",
-    teacherName: "Mega Andini Putri, S.Pd",
-    teacherNip: "1992082003",
-    teacherRole: "Guru Wali Kelas 6",
-    rombel: "Kelas 6 (Imam Bukhari)",
-    period: "Semester Ganjil 2026/2027",
-    academicYear: "2026/2027",
-    scoreJournal: 92,
-    scoreCommunication: 94,
-    scoreCompetence: 90,
-    scoreAttendance: 95,
-    scoreImprovisation: 90,
-    totalScore: 91.8,
-    grade: "Sangat Memuaskan",
-    rewardStatus: "DISETUJUI_YAYASAN",
-    rewardTitle: "Juara 3 Guru Inspiratif Kesiswaan",
-    rewardDetail: "Uang Pembinaan Yayasan Rp 750.000 + Piagam Penghargaan Resmi",
-    rewardAmount: 750000,
-    evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
-    acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
-    evaluationDate: "2026-12-18",
-    notes: "Berhasil membimbing persiapan Asesmen Nasional & pembentukan karakter kepemimpinan siswa kelas 6 dengan sangat inspiratif."
-  },
-  {
-    id: "kpi-4",
-    teacherId: "tch-4",
-    teacherName: "Setia Widi Mawaddah, S.Pd",
-    teacherNip: "1993071206",
-    teacherRole: "Guru Wali Kelas 2",
-    rombel: "Kelas 2 (Ibnu Sina)",
-    period: "Semester Ganjil 2026/2027",
-    academicYear: "2026/2027",
-    scoreJournal: 88,
-    scoreCommunication: 90,
-    scoreCompetence: 88,
-    scoreAttendance: 96,
-    scoreImprovisation: 86,
-    totalScore: 88.9,
-    grade: "Memuaskan",
-    rewardStatus: "DISETUJUI_YAYASAN",
-    rewardTitle: "Insentif Kinerja & Apresiasi Yayasan",
-    rewardDetail: "Insentif Pencapaian Kinerja Rp 500.000 + Sertifikat Apresiasi",
-    rewardAmount: 500000,
-    evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
-    acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
-    evaluationDate: "2026-12-18",
-    notes: "Kinerja stabil dan tertib. Sangat baik dalam mengkondisikan ketertiban anak di kelas 2."
-  },
-  {
-    id: "kpi-5",
-    teacherId: "tch-5",
-    teacherName: "Ahmad Fauzi, S.Pd",
-    teacherNip: "1989022008",
-    teacherRole: "Guru PJOK 1-6",
-    rombel: "Kelas 1-6 (PJOK)",
-    period: "Semester Ganjil 2026/2027",
-    academicYear: "2026/2027",
-    scoreJournal: 86,
-    scoreCommunication: 88,
-    scoreCompetence: 89,
-    scoreAttendance: 98,
-    scoreImprovisation: 88,
-    totalScore: 88.8,
-    grade: "Memuaskan",
-    rewardStatus: "DISETUJUI_YAYASAN",
-    rewardTitle: "Insentif Kinerja & Apresiasi Yayasan",
-    rewardDetail: "Insentif Pencapaian Kinerja Rp 500.000 + Sertifikat Apresiasi",
-    rewardAmount: 500000,
-    evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
-    acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
-    evaluationDate: "2026-12-18",
-    notes: "Aktivitas fisik siswa berlangsung semarak dan aman. Kehadiran sangat disiplin."
-  },
-  {
-    id: "kpi-6",
-    teacherId: "tch-6",
-    teacherName: "Nurbibiyatillah",
-    teacherNip: "1994011507",
-    teacherRole: "Guru Wali Kelas 5",
-    rombel: "Kelas 5 (Al-Biruni)",
-    period: "Semester Ganjil 2026/2027",
-    academicYear: "2026/2027",
-    scoreJournal: 85,
-    scoreCommunication: 86,
-    scoreCompetence: 87,
-    scoreAttendance: 95,
-    scoreImprovisation: 84,
-    totalScore: 86.6,
-    grade: "Memuaskan",
-    rewardStatus: "DISETUJUI_YAYASAN",
-    rewardTitle: "Insentif Kinerja & Apresiasi Yayasan",
-    rewardDetail: "Insentif Pencapaian Kinerja Rp 500.000 + Sertifikat Apresiasi",
-    rewardAmount: 500000,
-    evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
-    acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
-    evaluationDate: "2026-12-18",
-    notes: "Pengelolaan kelas 5 kondusif dan pencapaian akademik sesuai target kurikulum."
-  },
-  {
-    id: "kpi-7",
-    teacherId: "tch-7",
-    teacherName: "Subihat, S.Pd",
-    teacherNip: "1992090912",
-    teacherRole: "Guru Koord BPI",
-    rombel: "Bina Pribadi Islam",
-    period: "Semester Ganjil 2026/2027",
-    academicYear: "2026/2027",
-    scoreJournal: 88,
-    scoreCommunication: 85,
-    scoreCompetence: 88,
-    scoreAttendance: 96,
-    scoreImprovisation: 85,
-    totalScore: 87.8,
-    grade: "Memuaskan",
-    rewardStatus: "DISETUJUI_YAYASAN",
-    rewardTitle: "Insentif Kinerja & Apresiasi Yayasan",
-    rewardDetail: "Insentif Pencapaian Kinerja Rp 500.000 + Sertifikat Apresiasi",
-    rewardAmount: 500000,
-    evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
-    acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
-    evaluationDate: "2026-12-18",
-    notes: "Koordinasi program Bina Pribadi Islam dan pembiasaan sholat dhuha/dzuhur berjalan istiqomah."
-  }
-];
+  const activeKpiList = (externalKpiList && externalKpiList.length > 0) ? externalKpiList : localKpiList;
 
-// Helper kalkulasi skor tertimbang formula resmi Excel Yayasan
-export const calculateWeightedKpiScore = (j, c, comp, att, imp) => {
-  const sJ = Number(j) || 0;
-  const sC = Number(c) || 0;
-  const sComp = Number(comp) || 0;
-  const sAtt = Number(att) || 0;
-  const sImp = Number(imp) || 0;
-  const total = (sJ * 0.25) + (sC * 0.20) + (sComp * 0.30) + (sAtt * 0.10) + (sImp * 0.15);
-  return Math.round(total * 100) / 100;
-};
+  const updateKpiState = (newList) => {
+    setLocalKpiList(newList);
+    try {
+      localStorage.setItem("yayasan_kpis_v2", JSON.stringify(newList));
+    } catch (e) {
+      console.error(e);
+    }
+    if (onBulkSetKpi) {
+      onBulkSetKpi(newList);
+    }
+  };
 
-export const getKpiGradeInfo = (score) => {
-  if (score >= 90) return { label: "Sangat Memuaskan (Guru Teladan)", short: "Sangat Memuaskan", badge: "bg-emerald-100 text-emerald-800 border-emerald-300", color: "text-emerald-600", dot: "bg-emerald-500" };
-  if (score >= 80) return { label: "Memuaskan (Sesuai Standar)", short: "Memuaskan", badge: "bg-blue-100 text-blue-800 border-blue-300", color: "text-blue-600", dot: "bg-blue-500" };
-  if (score >= 70) return { label: "Cukup (Standar Minimal)", short: "Cukup", badge: "bg-amber-100 text-amber-800 border-amber-300", color: "text-amber-600", dot: "bg-amber-500" };
-  return { label: "Perlu Pembinaan Khusus", short: "Perlu Pembinaan", badge: "bg-rose-100 text-rose-800 border-rose-300", color: "text-rose-600", dot: "bg-rose-500" };
-};
+  // Active View Tab: 'matrix' (Lembar Tabel Excel), 'rekap' (Daftar & Ranking), 'rubrik' (Standar Baku)
+  const [activeTab, setActiveTab] = useState("matrix");
+  
+  // Selected Teacher for the Matrix Evaluation Table
+  const [selectedTeacherId, setSelectedTeacherId] = useState(() => {
+    if (activeKpiList.length > 0) return activeKpiList[0].teacherId || activeKpiList[0].id;
+    if (teachers.length > 0) return teachers[0].id;
+    return "tch-1";
+  });
 
-export default function KpiEvaluationModule({
-  React: propReact,
-  kpiList = [],
-  teachers = [],
-  currentRole = "SUPERADMIN",
-  onAddKpi,
-  onUpdateKpi,
-  onDeleteKpi,
-  onBulkSetKpi,
-  foundationProfile
-}) {
-  if (propReact && typeof window !== "undefined") {
-    window.__AppReact = propReact;
-  }
+  // Working scores state for current selected teacher in the Matrix Table
+  const [currentScores, setCurrentScores] = useState(() => {
+    const existing = activeKpiList.find(k => (k.teacherId === selectedTeacherId || k.id === selectedTeacherId));
+    if (existing && existing.subScores) return { ...existing.subScores };
+    return {
+      "01.00": 90, "01.01": 90,
+      "02.01": 90, "02.02": 90, "02.03": 90,
+      "03.01": 90, "03.02": 90,
+      "04.02": 90, "05.02": 90, "06.02": 90,
+      "07.02": 90, "08.02": 90, "09.02": 90
+    };
+  });
 
-  const [selectedPeriod, setSelectedPeriod] = useState("ALL");
+  const [evaluationNotes, setEvaluationNotes] = useState(() => {
+    const existing = activeKpiList.find(k => (k.teacherId === selectedTeacherId || k.id === selectedTeacherId));
+    return existing ? existing.notes || "" : "";
+  });
+
+  const [saveSuccessNotice, setSaveSuccessNotice] = useState(false);
+
+  // Search & Filter in Rekap
   const [searchQuery, setSearchQuery] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [viewCertificate, setViewCertificate] = useState(null);
-  const [showIndicatorsGuide, setShowIndicatorsGuide] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importPreviewData, setImportPreviewData] = useState([]);
-  const [importMode, setImportMode] = useState("REPLACE");
-  const [isProcessingImport, setIsProcessingImport] = useState(false);
-  const [importFileName, setImportFileName] = useState("");
-  const [toastMessage, setToastMessage] = useState(null);
+  const [filterPeriod, setFilterPeriod] = useState("ALL");
+  const [filterGrade, setFilterGrade] = useState("ALL");
 
-  // Import Dialog advanced states
-  const [importTab, setImportTab] = useState("FILE"); // "FILE" or "PASTE"
-  const [pastedDataText, setPastedDataText] = useState("");
-  const [availableSheets, setAvailableSheets] = useState([]);
-  const [selectedSheetName, setSelectedSheetName] = useState("");
-  const [currentWorkbook, setCurrentWorkbook] = useState(null);
-  const [isDragOver, setIsDragOver] = useState(false);
-
+  // Modal States
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importPreviewData, setImportPreviewData] = useState(null);
+  const [importError, setImportError] = useState(null);
+  const [importNotice, setImportNotice] = useState(null);
   const fileInputRef = useRef(null);
 
-  const showToast = (msg, type = "success") => {
-    setToastMessage({ msg, type });
-    setTimeout(() => setToastMessage(null), 4000);
-  };
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [printTargetEvaluation, setPrintTargetEvaluation] = useState(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
-  // Form states
-  const [formTeacherId, setFormTeacherId] = useState("");
-  const [formPeriod, setFormPeriod] = useState("Semester Ganjil 2026/2027");
-  const [formScoreJournal, setFormScoreJournal] = useState(90);
-  const [formScoreCommunication, setFormScoreCommunication] = useState(90);
-  const [formScoreCompetence, setFormScoreCompetence] = useState(90);
-  const [formScoreAttendance, setFormScoreAttendance] = useState(95);
-  const [formScoreImprovisation, setFormScoreImprovisation] = useState(90);
-  const [formRewardTitle, setFormRewardTitle] = useState("");
-  const [formRewardDetail, setFormRewardDetail] = useState("");
-  const [formRewardAmount, setFormRewardAmount] = useState(500000);
-  const [formNotes, setFormNotes] = useState("");
-
-  const currentCalculatedScore = calculateWeightedKpiScore(
-    formScoreJournal,
-    formScoreCommunication,
-    formScoreCompetence,
-    formScoreAttendance,
-    formScoreImprovisation
-  );
-
-  // Auto recommend reward title based on score
-  useEffect(() => {
-    if (!editingItem) {
-      if (currentCalculatedScore >= 95) {
-        setFormRewardTitle("Juara 1 Guru Teladan & Berprestasi");
-        setFormRewardDetail("Uang Pembinaan Yayasan Rp 1.500.000 + Piagam Penghargaan Resmi + Prioritas Tunjangan");
-        setFormRewardAmount(1500000);
-      } else if (currentCalculatedScore >= 93) {
-        setFormRewardTitle("Juara 2 Guru Inovatif & Berprestasi");
-        setFormRewardDetail("Uang Pembinaan Yayasan Rp 1.000.000 + Piagam Penghargaan Resmi");
-        setFormRewardAmount(1000000);
-      } else if (currentCalculatedScore >= 90) {
-        setFormRewardTitle("Juara 3 Guru Inspiratif Kesiswaan");
-        setFormRewardDetail("Uang Pembinaan Yayasan Rp 750.000 + Piagam Penghargaan Resmi");
-        setFormRewardAmount(750000);
-      } else if (currentCalculatedScore >= 80) {
-        setFormRewardTitle("Insentif Kinerja & Apresiasi Yayasan");
-        setFormRewardDetail("Insentif Pencapaian Kinerja Rp 500.000 + Sertifikat");
-        setFormRewardAmount(500000);
-      } else {
-        setFormRewardTitle("Program Pembinaan & Supervisi");
-        setFormRewardDetail("Pendampingan Pembelajaran & Evaluasi Bulanan");
-        setFormRewardAmount(0);
-      }
+  // Synchronize currentScores when selected teacher changes
+  const handleSelectTeacher = (tId) => {
+    setSelectedTeacherId(tId);
+    const existing = activeKpiList.find(k => (k.teacherId === tId || k.id === tId));
+    if (existing && existing.subScores) {
+      setCurrentScores({ ...existing.subScores });
+      setEvaluationNotes(existing.notes || "");
+    } else {
+      // Default scores
+      const def = {};
+      OFFICIAL_KPI_INDICATORS.forEach(ind => {
+        def[ind.code] = 90;
+      });
+      setCurrentScores(def);
+      setEvaluationNotes("");
     }
-  }, [currentCalculatedScore, editingItem]);
-
-  const openAddModal = () => {
-    setEditingItem(null);
-    const firstT = teachers.find(t => (t.role || "").toLowerCase() !== "kepala sekolah") || teachers[0];
-    setFormTeacherId(firstT ? firstT.id : "");
-    setFormPeriod("Semester Ganjil 2026/2027");
-    setFormScoreJournal(92);
-    setFormScoreCommunication(90);
-    setFormScoreCompetence(94);
-    setFormScoreAttendance(98);
-    setFormScoreImprovisation(90);
-    setFormNotes("Kinerja pembelajaran sangat baik dan memenuhi indikator yayasan.");
-    setIsModalOpen(true);
   };
 
-  const openEditModal = (item) => {
-    setEditingItem(item);
-    setFormTeacherId(item.teacherId);
-    setFormPeriod(item.period);
-    setFormScoreJournal(item.scoreJournal);
-    setFormScoreCommunication(item.scoreCommunication);
-    setFormScoreCompetence(item.scoreCompetence);
-    setFormScoreAttendance(item.scoreAttendance);
-    setFormScoreImprovisation(item.scoreImprovisation);
-    setFormRewardTitle(item.rewardTitle || "");
-    setFormRewardDetail(item.rewardDetail || "");
-    setFormRewardAmount(item.rewardAmount || 0);
-    setFormNotes(item.notes || "");
-    setIsModalOpen(true);
+  // Find active teacher info
+  const selectedTeacherObj = useMemo(() => {
+    const fromTeachers = teachers.find(t => t.id === selectedTeacherId);
+    if (fromTeachers) return fromTeachers;
+    const fromKpi = activeKpiList.find(k => (k.teacherId === selectedTeacherId || k.id === selectedTeacherId));
+    if (fromKpi) {
+      return {
+        id: fromKpi.teacherId || fromKpi.id,
+        name: fromKpi.teacherName,
+        nip: fromKpi.teacherNip,
+        role: fromKpi.teacherRole,
+        gradeClass: fromKpi.rombel
+      };
+    }
+    return {
+      id: "tch-1",
+      name: "Uyat Sukriyati, S.Pd",
+      nip: "1991051005",
+      role: "Guru Wali Kelas 1",
+      gradeClass: "Kelas 1 (Fathurrahman)"
+    };
+  }, [selectedTeacherId, teachers, activeKpiList]);
+
+  // Live Score calculations for current matrix table
+  const liveCalculation = useMemo(() => {
+    return calculateOfficialKpiScore(currentScores);
+  }, [currentScores]);
+
+  const liveGradeInfo = useMemo(() => {
+    return getKpiGradeInfo(liveCalculation.totalScore);
+  }, [liveCalculation.totalScore]);
+
+  // Handle Score Input Change in Matrix Table
+  const handleScoreChange = (code, value) => {
+    let val = Number(value);
+    if (isNaN(val)) val = 0;
+    if (val > 100) val = 100;
+    if (val < 0) val = 0;
+    setCurrentScores(prev => ({
+      ...prev,
+      [code]: val
+    }));
   };
 
-  const handleSaveForm = (ev) => {
-    ev.preventDefault();
-    const selTeacher = teachers.find(t => t.id === formTeacherId) || { name: "Guru", role: "Guru", nip: "-", assignedRombel: "-" };
-    const total = calculateWeightedKpiScore(formScoreJournal, formScoreCommunication, formScoreCompetence, formScoreAttendance, formScoreImprovisation);
-    const gradeObj = getKpiGradeInfo(total);
+  const handleQuickBatchSet = (scoreVal) => {
+    const updated = {};
+    OFFICIAL_KPI_INDICATORS.forEach(ind => {
+      updated[ind.code] = scoreVal;
+    });
+    setCurrentScores(updated);
+  };
 
-    const payload = {
-      id: editingItem ? editingItem.id : "kpi-" + Date.now(),
-      teacherId: formTeacherId,
-      teacherName: selTeacher.name,
-      teacherNip: selTeacher.nip || selTeacher.nipy || "-",
-      teacherRole: selTeacher.role || "Guru",
-      rombel: selTeacher.assignedRombel || "Kelas",
-      period: formPeriod,
+  // Save current teacher scores into evaluation list
+  const handleSaveCurrentTeacherEvaluation = () => {
+    const calc = calculateOfficialKpiScore(currentScores);
+    const gradeObj = getKpiGradeInfo(calc.totalScore);
+
+    const existingIndex = activeKpiList.findIndex(k => (k.teacherId === selectedTeacherId || k.id === selectedTeacherId));
+    
+    let rewardTitle = "Apresiasi Kinerja Yayasan";
+    let rewardAmount = 500000;
+    let rewardDetail = "Insentif Pencapaian Kinerja Rp 500.000 + Sertifikat";
+
+    if (calc.totalScore >= 95) {
+      rewardTitle = "Juara 1 Guru Teladan & Berprestasi";
+      rewardAmount = 1500000;
+      rewardDetail = "Uang Pembinaan Yayasan Rp 1.500.000 + Piagam Penghargaan Resmi";
+    } else if (calc.totalScore >= 93) {
+      rewardTitle = "Juara 2 Guru Inovatif & Berprestasi";
+      rewardAmount = 1000000;
+      rewardDetail = "Uang Pembinaan Yayasan Rp 1.000.000 + Piagam Penghargaan Resmi";
+    } else if (calc.totalScore >= 90) {
+      rewardTitle = "Juara 3 Guru Inspiratif Kesiswaan";
+      rewardAmount = 750000;
+      rewardDetail = "Uang Pembinaan Yayasan Rp 750.000 + Piagam Penghargaan Resmi";
+    }
+
+    const newEvalRecord = {
+      id: existingIndex >= 0 ? activeKpiList[existingIndex].id : `kpi-${Date.now()}`,
+      teacherId: selectedTeacherObj.id || selectedTeacherId,
+      teacherName: selectedTeacherObj.name,
+      teacherNip: selectedTeacherObj.nip || "-",
+      teacherRole: selectedTeacherObj.role || selectedTeacherObj.position || "Guru Kelas",
+      rombel: selectedTeacherObj.gradeClass || "Semua Rombel",
+      period: "Semester Ganjil 2026/2027",
       academicYear: "2026/2027",
-      scoreJournal: Number(formScoreJournal),
-      scoreCommunication: Number(formScoreCommunication),
-      scoreCompetence: Number(formScoreCompetence),
-      scoreAttendance: Number(formScoreAttendance),
-      scoreImprovisation: Number(formScoreImprovisation),
-      totalScore: total,
+      subScores: { ...currentScores },
+      totalScore: calc.totalScore,
+      kinerjaScore: calc.kinerjaScore,
+      perilakuScore: calc.perilakuScore,
       grade: gradeObj.short,
-      rewardStatus: editingItem ? editingItem.rewardStatus : "DISETUJUI_YAYASAN",
-      rewardTitle: formRewardTitle,
-      rewardDetail: formRewardDetail,
-      rewardAmount: Number(formRewardAmount) || 0,
+      rewardStatus: "DISETUJUI_YAYASAN",
+      rewardTitle,
+      rewardDetail,
+      rewardAmount,
       evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
       acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
       evaluationDate: new Date().toISOString().split("T")[0],
-      notes: formNotes
+      notes: evaluationNotes || `Penilaian KPI resmi berdasarkan 13 butir indikator Sasaran Kinerja & Perilaku.`
     };
 
-    if (editingItem) {
-      if (onUpdateKpi) onUpdateKpi(payload);
+    let updatedList;
+    if (existingIndex >= 0) {
+      updatedList = [...activeKpiList];
+      updatedList[existingIndex] = newEvalRecord;
     } else {
-      if (onAddKpi) onAddKpi(payload);
+      updatedList = [newEvalRecord, ...activeKpiList];
     }
-    setIsModalOpen(false);
-    showToast("Data KPI " + payload.teacherName + " berhasil disimpan!");
+
+    updateKpiState(updatedList);
+    setSaveSuccessNotice(true);
+    setTimeout(() => setSaveSuccessNotice(false), 3000);
   };
 
-  // Filtered and Sorted
+  // Ranked List for Leaderboard
+  const rankedKpiList = useMemo(() => {
+    const list = [...activeKpiList];
+    list.sort((a, b) => (Number(b.totalScore) || 0) - (Number(a.totalScore) || 0));
+    return list;
+  }, [activeKpiList]);
+
+  // Filtered List for Rekap Table
   const filteredList = useMemo(() => {
-    return kpiList
-      .filter(item => {
-        const matchesPeriod = selectedPeriod === "ALL" || item.period === selectedPeriod;
-        const matchesSearch =
-          (item.teacherName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (item.rombel || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (item.teacherNip && item.teacherNip.toLowerCase().includes(searchQuery.toLowerCase()));
-        return matchesPeriod && matchesSearch;
-      })
-      .sort((a, b) => b.totalScore - a.totalScore)
-      .map((item, idx) => ({ ...item, rank: idx + 1 }));
-  }, [kpiList, selectedPeriod, searchQuery]);
-
-  const top3 = filteredList.slice(0, 3);
-
-  // Statistics
-  const avgScore = filteredList.length > 0 ? (filteredList.reduce((acc, curr) => acc + curr.totalScore, 0) / filteredList.length).toFixed(2) : "0";
-  const totalRewardsAllocated = filteredList.reduce((acc, curr) => acc + (curr.rewardAmount || 0), 0);
-  const excellentTeachersCount = filteredList.filter(t => t.totalScore >= 90).length;
-
-  // 1. Download Master Template Excel Standar KPI Yayasan (dengan Rumus Formula Baku)
-  const handleDownloadExcelTemplate = () => {
-    if (!XLSX || !XLSX.utils) {
-      alert("Modul Excel XLSX sedang dimuat, silakan coba lagi.");
-      return;
-    }
-
-    const availableTeachers = teachers.filter(t => (t.role || "").toLowerCase() !== "kepala sekolah");
-    const teachersToUse = availableTeachers.length > 0 ? availableTeachers : [
-      { id: "tch-1", name: "Uyat Sukriyati, S.Pd", nip: "1991051005", role: "Guru Wali Kelas 1", assignedRombel: "Kelas 1" },
-      { id: "tch-2", name: "Iis Rohmayanti, S.Pd", nip: "1990041502", role: "Guru Wali Kelas 4", assignedRombel: "Kelas 4" },
-      { id: "tch-3", name: "Mega Andini Putri, S.Pd", nip: "1992082003", role: "Guru Wali Kelas 6", assignedRombel: "Kelas 6" },
-      { id: "tch-4", name: "Setia Widi Mawaddah, S.Pd", nip: "1993071206", role: "Guru Wali Kelas 2", assignedRombel: "Kelas 2" },
-      { id: "tch-5", name: "Ahmad Fauzi, S.Pd", nip: "1989022008", role: "Guru PJOK 1-6", assignedRombel: "Kelas 1-6" },
-      { id: "tch-6", name: "Nurbibiyatillah", nip: "1994011507", role: "Guru Wali Kelas 5", assignedRombel: "Kelas 5" },
-      { id: "tch-7", name: "Subihat, S.Pd", nip: "1992090912", role: "Guru Koord BPI", assignedRombel: "Bina Pribadi Islam" }
-    ];
-
-    // Build data rows for template
-    const templateRows = teachersToUse.map((t, idx) => {
-      const sampleScores = [
-        { j: 96, c: 95, comp: 94, att: 100, imp: 94, rew: 1500000, tit: "Juara 1 Guru Teladan & Berprestasi" },
-        { j: 94, c: 92, comp: 96, att: 98, imp: 92, rew: 1000000, tit: "Juara 2 Guru Inovatif & Berprestasi" },
-        { j: 92, c: 94, comp: 90, att: 95, imp: 90, rew: 750000, tit: "Juara 3 Guru Inspiratif Kesiswaan" },
-        { j: 88, c: 90, comp: 88, att: 96, imp: 86, rew: 500000, tit: "Insentif Kinerja & Apresiasi Yayasan" },
-        { j: 86, c: 88, comp: 89, att: 98, imp: 88, rew: 500000, tit: "Insentif Kinerja & Apresiasi Yayasan" },
-        { j: 85, c: 86, comp: 87, att: 95, imp: 84, rew: 500000, tit: "Insentif Kinerja & Apresiasi Yayasan" },
-        { j: 88, c: 85, comp: 88, att: 96, imp: 85, rew: 500000, tit: "Insentif Kinerja & Apresiasi Yayasan" }
-      ][idx % 7];
-
-      return {
-        "No": idx + 1,
-        "ID Guru": t.id || "tch-" + (idx + 1),
-        "Nama Lengkap Guru": t.name,
-        "NIP / NIPY": t.nip || t.nipy || "-",
-        "Tugas / Rombel": t.assignedRombel || t.role || "Guru",
-        "Periode Evaluasi": "Semester Ganjil 2026/2027",
-        "1. Jurnal Mengajar (25%)": sampleScores.j,
-        "2. Komunikasi Prestasi (20%)": sampleScores.c,
-        "3. Capaian Kompetensi (30%)": sampleScores.comp,
-        "4. Kehadiran & Disiplin (10%)": sampleScores.att,
-        "5. Improvisasi KBM (15%)": sampleScores.imp,
-        "Total Skor Akhir (Formula)": calculateWeightedKpiScore(sampleScores.j, sampleScores.c, sampleScores.comp, sampleScores.att, sampleScores.imp),
-        "Predikat Kinerja": getKpiGradeInfo(calculateWeightedKpiScore(sampleScores.j, sampleScores.c, sampleScores.comp, sampleScores.att, sampleScores.imp)).short,
-        "Gelar Juara / Hadiah": sampleScores.tit,
-        "Nominal Hadiah (Rp)": sampleScores.rew,
-        "Catatan Khusus Penilai": "Kinerja terverifikasi sangat baik sesuai standar indikator yayasan.",
-        "Penilai (Kepala Sekolah)": "Masykur Rohana, S.Sos",
-        "Mengetahui (Ketua Yayasan)": "Drs. H. M. Syukri, M.M"
-      };
+    return rankedKpiList.filter(item => {
+      const matchSearch = (item.teacherName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (item.teacherNip || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (item.rombel || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchPeriod = filterPeriod === "ALL" || item.period === filterPeriod;
+      const matchGrade = filterGrade === "ALL" || item.grade === filterGrade;
+      return matchSearch && matchPeriod && matchGrade;
     });
+  }, [rankedKpiList, searchQuery, filterPeriod, filterGrade]);
 
-    const ws1 = XLSX.utils.json_to_sheet(templateRows);
-    
-    // Auto column widths
-    const colWidths = [
-      { wch: 6 },
-      { wch: 12 },
-      { wch: 26 },
-      { wch: 16 },
-      { wch: 20 },
-      { wch: 24 },
-      { wch: 24 },
-      { wch: 26 },
-      { wch: 26 },
-      { wch: 24 },
-      { wch: 24 },
-      { wch: 24 },
-      { wch: 18 },
-      { wch: 32 },
-      { wch: 18 },
-      { wch: 35 },
-      { wch: 24 },
-      { wch: 24 }
-    ];
-    ws1["!cols"] = colWidths;
-
-    // Sheet 2: Panduan & Bobot Standar Excel
-    const guideRows = [
-      { "KODE": "IND-01", "INDIKATOR STANDAR": "Memenuhi seluruh elemen kerja guru yang tertulis dalam jurnal", "BOBOT": "25%", "RENTANG SKOR": "0 - 100", "KETERANGAN": "Kelengkapan modul ajar, catatan harian, jurnal kelas" },
-      { "KODE": "IND-02", "INDIKATOR STANDAR": "Membangun komunikasi dengan anak didik dan orang tua terkait prestasi", "BOBOT": "20%", "RENTANG SKOR": "0 - 100", "KETERANGAN": "Konsultasi wali murid, update mutabaah/tahfidz, respon cepat" },
-      { "KODE": "IND-03", "INDIKATOR STANDAR": "Memenuhi capaian kompetensi yang dipersyaratkan oleh sekolah", "BOBOT": "30%", "RENTANG SKOR": "0 - 100", "KETERANGAN": "Ketuntasan kurikulum, daya serap siswa, pencapaian akademik" },
-      { "KODE": "IND-04", "INDIKATOR STANDAR": "Kehadiran guru / Presensi & Kedisiplinan", "BOBOT": "10%", "RENTANG SKOR": "0 - 100", "KETERANGAN": "Presensi fingerprint, tepat waktu hadir di kelas & apel yayasan" },
-      { "KODE": "IND-05", "INDIKATOR STANDAR": "Improvisasi Kegiatan Belajar Mengajar (KBM) & Inovasi", "BOBOT": "15%", "RENTANG SKOR": "0 - 100", "KETERANGAN": "Kreativitas alat peraga, media digital, suasana kelas interaktif" },
-      { "KODE": "TOTAL", "INDIKATOR STANDAR": "RUMUS FORMULA TERTIMBANG", "BOBOT": "100%", "RENTANG SKOR": "0 - 100", "KETERANGAN": "=(Jurnal*0.25)+(Komunikasi*0.20)+(Kompetensi*0.30)+(Kehadiran*0.10)+(Inovasi*0.15)" },
-      { "KODE": "REWARD-1", "INDIKATOR STANDAR": "Juara 1 Guru Teladan Yayasan", "BOBOT": "Skor >= 95", "RENTANG SKOR": "Rp 1.500.000", "KETERANGAN": "Uang Pembinaan + Piagam Penghargaan Resmi + Prioritas Insentif" },
-      { "KODE": "REWARD-2", "INDIKATOR STANDAR": "Juara 2 Guru Inovatif Yayasan", "BOBOT": "Skor >= 93", "RENTANG SKOR": "Rp 1.000.000", "KETERANGAN": "Uang Pembinaan + Piagam Penghargaan Resmi" },
-      { "KODE": "REWARD-3", "INDIKATOR STANDAR": "Juara 3 Guru Inspiratif Yayasan", "BOBOT": "Skor >= 90", "RENTANG SKOR": "Rp 750.000", "KETERANGAN": "Uang Pembinaan + Piagam Penghargaan Resmi" },
-      { "KODE": "REWARD-4", "INDIKATOR STANDAR": "Insentif Kinerja & Apresiasi", "BOBOT": "Skor 80 - 89.9", "RENTANG SKOR": "Rp 500.000", "KETERANGAN": "Insentif Pencapaian Kinerja + Sertifikat Apresiasi" }
-    ];
-    const ws2 = XLSX.utils.json_to_sheet(guideRows);
-    ws2["!cols"] = [{ wch: 12 }, { wch: 45 }, { wch: 15 }, { wch: 18 }, { wch: 50 }];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws1, "STANDAR_EVALUASI_KPI");
-    XLSX.utils.book_append_sheet(wb, ws2, "PANDUAN_BOBOT_STANDAR");
-
-    XLSX.writeFile(wb, "Template_Standar_KPI_Guru_SDIT_El_Fatah.xlsx");
-    showToast("Template Excel Standar KPI Guru berhasil diunduh!");
+  // Navigation between teachers in Matrix view
+  const currentTeacherIndex = teachers.findIndex(t => t.id === selectedTeacherId);
+  const handlePrevTeacher = () => {
+    if (teachers.length <= 1) return;
+    const prevIdx = (currentTeacherIndex - 1 + teachers.length) % teachers.length;
+    handleSelectTeacher(teachers[prevIdx].id);
+  };
+  const handleNextTeacher = () => {
+    if (teachers.length <= 1) return;
+    const nextIdx = (currentTeacherIndex + 1) % teachers.length;
+    handleSelectTeacher(teachers[nextIdx].id);
   };
 
-  // 2. Export Live Data to Excel
-  const handleExportExcel = () => {
-    if (!XLSX || !XLSX.utils) {
-      alert("Modul XLSX belum siap.");
-      return;
-    }
-    const dataForExport = filteredList.map((item, idx) => ({
-      "Peringkat / Ranking": idx + 1,
-      "Nama Guru / Staf": item.teacherName,
-      "NIP / NIPY": item.teacherNip,
-      "Tugas / Rombel": item.rombel,
-      "Periode Evaluasi": item.period,
-      "1. Jurnal Mengajar (25%)": item.scoreJournal,
-      "2. Komunikasi Prestasi (20%)": item.scoreCommunication,
-      "3. Capaian Kompetensi (30%)": item.scoreCompetence,
-      "4. Kehadiran & Disiplin (10%)": item.scoreAttendance,
-      "5. Improvisasi KBM (15%)": item.scoreImprovisation,
-      "Total Skor Akhir (100%)": item.totalScore,
-      "Predikat Kinerja": item.grade,
-      "Gelar Juara / Hadiah": item.rewardTitle,
-      "Nominal Hadiah (Rp)": item.rewardAmount,
-      "Rincian Hadiah": item.rewardDetail,
-      "Catatan Evaluasi Penilai": item.notes,
-      "Penilai (Kepala Sekolah)": item.evaluatorName || "Masykur Rohana, S.Sos",
-      "Mengetahui (Ketua Yayasan)": item.acknowledgedBy || "Drs. H. M. Syukri, M.M",
-      "Tanggal Evaluasi": item.evaluationDate || new Date().toISOString().split("T")[0]
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(dataForExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rekap_KPI_Guru");
-    XLSX.writeFile(wb, "Rekap_Evaluasi_KPI_Guru_SDIT_El_Fatah_" + (selectedPeriod === "ALL" ? "Semua_Periode" : selectedPeriod.replace(/[^a-zA-Z0-9]/g, "_")) + ".xlsx");
-    showToast("Rekapitulasi KPI Guru berhasil diekspor ke Excel!");
-  };
-
-  // Universal Table Row Parser (Supports any SheetJS sheet or 2D Array)
-  const processRawSheetRows = (sheetRows) => {
-    if (!sheetRows || sheetRows.length === 0) return [];
-
-    // 1. Scan for the header row among the first 25 rows
-    let headerRowIndex = 0;
-    let maxHeaderScore = 0;
-
-    const keywords = [
-      "nama", "guru", "staf", "pendidik", "ptk", "ustadz", "ustadzah", "teacher",
-      "nip", "nipy", "nik", "nuptk", "id",
-      "jurnal", "elemen", "kerja", "modul", "rpp", "administrasi", "ind-01", "ind 1", "ind1",
-      "komunikasi", "prestasi", "ortu", "orang tua", "wali", "siswa", "ind-02", "ind 2", "ind2",
-      "kompetensi", "capaian", "akademik", "kktp", "kkm", "kurikulum", "ind-03", "ind 3", "ind3",
-      "kehadiran", "presensi", "hadir", "disiplin", "absen", "ind-04", "ind 4", "ind4",
-      "improvisasi", "inovasi", "kbm", "kreativitas", "media", "alat peraga", "ind-05", "ind 5", "ind5",
-      "total", "skor", "nilai", "predikat", "hadiah", "juara", "reward", "catatan"
-    ];
-
-    for (let r = 0; r < Math.min(sheetRows.length, 25); r++) {
-      const row = sheetRows[r];
-      if (!Array.isArray(row)) continue;
-      let score = 0;
-      row.forEach(cell => {
-        const str = String(cell || "").toLowerCase().trim();
-        if (!str) return;
-        keywords.forEach(kw => {
-          if (str.includes(kw)) score += 1;
-        });
-      });
-      if (score > maxHeaderScore) {
-        maxHeaderScore = score;
-        headerRowIndex = r;
-      }
-    }
-
-    const headers = (sheetRows[headerRowIndex] || []).map(h => String(h || "").trim());
-    const dataRows = sheetRows.slice(headerRowIndex + 1);
-
-    // Convert to row objects
-    const parsedItems = [];
-
-    dataRows.forEach((row, rowIndex) => {
-      if (!Array.isArray(row) || row.every(c => c === "" || c === null || c === undefined)) return;
-
-      // Build row map
-      const rowObj = {};
-      headers.forEach((h, colIdx) => {
-        if (h) {
-          rowObj[h] = row[colIdx] !== undefined ? row[colIdx] : "";
-        }
-        rowObj["__col_" + colIdx] = row[colIdx] !== undefined ? row[colIdx] : "";
-      });
-
-      // Flexible name matching
-      let teacherName = "";
-      for (const [key, val] of Object.entries(rowObj)) {
-        const k = key.toLowerCase();
-        if (
-          k.includes("nama lengkap") ||
-          k.includes("nama guru") ||
-          k.includes("nama ptk") ||
-          k.includes("nama staf") ||
-          k.includes("nama pegawai") ||
-          k.includes("nama") ||
-          k.includes("guru") ||
-          k.includes("teacher")
-        ) {
-          if (String(val).trim() && !k.includes("penilai") && !k.includes("evaluator") && !k.includes("ketua")) {
-            teacherName = String(val).trim();
-            break;
-          }
-        }
-      }
-
-      // Fallback to column index 1 or 2 if no name found
-      if (!teacherName && row[1] && typeof row[1] === "string" && row[1].trim().length > 2 && isNaN(Number(row[1]))) {
-        teacherName = String(row[1]).trim();
-      } else if (!teacherName && row[2] && typeof row[2] === "string" && row[2].trim().length > 2 && isNaN(Number(row[2]))) {
-        teacherName = String(row[2]).trim();
-      } else if (!teacherName && row[0] && typeof row[0] === "string" && row[0].trim().length > 2 && isNaN(Number(row[0]))) {
-        teacherName = String(row[0]).trim();
-      }
-
-      // Skip row if it looks like a subtotal, footer, or empty name
-      if (
-        !teacherName ||
-        teacherName.toLowerCase().includes("total") ||
-        teacherName.toLowerCase().includes("rata-rata") ||
-        teacherName.toLowerCase().includes("mengetahui") ||
-        teacherName.toLowerCase().includes("kepala sekolah") ||
-        teacherName.toLowerCase().includes("ketua yayasan")
-      ) {
-        return;
-      }
-
-      // NIP / NIPY
-      let teacherNip = "-";
-      for (const [key, val] of Object.entries(rowObj)) {
-        const k = key.toLowerCase();
-        if (k.includes("nip") || k.includes("nipy") || k.includes("nik") || k.includes("nuptk") || k.includes("no. induk")) {
-          if (String(val).trim()) {
-            teacherNip = String(val).trim();
-            break;
-          }
-        }
-      }
-
-      // Rombel / Tugas
-      let rombel = "Guru";
-      for (const [key, val] of Object.entries(rowObj)) {
-        const k = key.toLowerCase();
-        if (k.includes("rombel") || k.includes("tugas") || k.includes("kelas") || k.includes("jabatan") || k.includes("mapel")) {
-          if (String(val).trim()) {
-            rombel = String(val).trim();
-            break;
-          }
-        }
-      }
-
-      // Helper pencari nilai indikator
-      const findScore = (keys, fallback = 85) => {
-        for (const [key, val] of Object.entries(rowObj)) {
-          const k = key.toLowerCase();
-          for (const searchKey of keys) {
-            if (k.includes(searchKey.toLowerCase())) {
-              const numVal = Number(String(val).replace(/,/g, ".").replace(/[^0-9.]/g, ""));
-              if (!isNaN(numVal) && numVal > 0) return numVal;
-            }
-          }
-        }
-        return fallback;
-      };
-
-      const sJournal = findScore(["jurnal", "ind-01", "ind 1", "elemen", "modul", "rpp", "25%"], 90);
-      const sComm = findScore(["komunikasi", "ind-02", "ind 2", "ortu", "orang tua", "wali", "20%"], 90);
-      const sComp = findScore(["kompetensi", "ind-03", "ind 3", "capaian", "akademik", "kktp", "30%"], 90);
-      const sAtt = findScore(["kehadiran", "presensi", "ind-04", "ind 4", "disiplin", "hadir", "10%"], 95);
-      const sImp = findScore(["improvisasi", "inovasi", "ind-05", "ind 5", "kbm", "kreativitas", "15%"], 90);
-
-      // Total score calculation
-      let totalScore = findScore(["total skor", "total score", "nilai akhir", "skor akhir", "total", "100%"], 0);
-      if (!totalScore || totalScore <= 0 || totalScore > 100) {
-        totalScore = calculateWeightedKpiScore(sJournal, sComm, sComp, sAtt, sImp);
-      } else {
-        totalScore = Math.round(Number(totalScore) * 100) / 100;
-      }
-
-      // Match teacher from database
-      const matchedTeacher = teachers.find(
-        t => (t.name && t.name.toLowerCase().includes(teacherName.toLowerCase())) ||
-             (t.nip && teacherNip !== "-" && t.nip === teacherNip)
-      );
-
-      const teacherId = matchedTeacher ? matchedTeacher.id : ("tch-imp-" + (rowIndex + 1));
-      const finalTeacherName = matchedTeacher ? matchedTeacher.name : teacherName;
-      const finalRole = matchedTeacher ? matchedTeacher.role : rombel;
-      const finalNip = matchedTeacher ? (matchedTeacher.nip || matchedTeacher.nipy || teacherNip) : teacherNip;
-
-      const gradeObj = getKpiGradeInfo(totalScore);
-
-      // Reward & Title
-      let rewardTitle = "";
-      let rewardAmount = 0;
-      let rewardDetail = "";
-
-      for (const [key, val] of Object.entries(rowObj)) {
-        const k = key.toLowerCase();
-        if (k.includes("gelar") || k.includes("juara") || k.includes("hadiah") || k.includes("penghargaan") || k.includes("reward")) {
-          if (String(val).trim() && isNaN(Number(val))) {
-            rewardTitle = String(val).trim();
-          }
-        }
-        if (k.includes("nominal") || k.includes("uang pembinaan") || k.includes("insentif (rp)") || k.includes("hadiah (rp)")) {
-          const parsedNominal = Number(String(val).replace(/[^0-9]/g, ""));
-          if (!isNaN(parsedNominal) && parsedNominal > 0) {
-            rewardAmount = parsedNominal;
-          }
-        }
-      }
-
-      // Auto assign reward if empty
-      if (!rewardTitle || rewardTitle.trim() === "") {
-        if (totalScore >= 95) {
-          rewardTitle = "Juara 1 Guru Teladan & Berprestasi";
-          rewardDetail = "Uang Pembinaan Yayasan Rp 1.500.000 + Piagam Penghargaan Resmi + Prioritas Tunjangan";
-          if (rewardAmount === 0) rewardAmount = 1500000;
-        } else if (totalScore >= 93) {
-          rewardTitle = "Juara 2 Guru Inovatif & Berprestasi";
-          rewardDetail = "Uang Pembinaan Yayasan Rp 1.000.000 + Piagam Penghargaan Resmi";
-          if (rewardAmount === 0) rewardAmount = 1000000;
-        } else if (totalScore >= 90) {
-          rewardTitle = "Juara 3 Guru Inspiratif Kesiswaan";
-          rewardDetail = "Uang Pembinaan Yayasan Rp 750.000 + Piagam Penghargaan Resmi";
-          if (rewardAmount === 0) rewardAmount = 750000;
-        } else if (totalScore >= 80) {
-          rewardTitle = "Insentif Kinerja & Apresiasi Yayasan";
-          rewardDetail = "Insentif Pencapaian Kinerja Rp 500.000 + Sertifikat";
-          if (rewardAmount === 0) rewardAmount = 500000;
-        } else {
-          rewardTitle = "Program Pembinaan Khusus";
-          rewardDetail = "Supervisi & Bimbingan Pengajaran";
-          rewardAmount = 0;
-        }
-      }
-
-      let notes = "Kinerja sesuai standar indikator yayasan.";
-      for (const [key, val] of Object.entries(rowObj)) {
-        const k = key.toLowerCase();
-        if (k.includes("catatan") || k.includes("keterangan") || k.includes("notes") || k.includes("evaluasi")) {
-          if (String(val).trim()) {
-            notes = String(val).trim();
-            break;
-          }
-        }
-      }
-
-      parsedItems.push({
-        id: "kpi-imp-" + Date.now() + "-" + rowIndex,
-        teacherId,
-        teacherName: finalTeacherName,
-        teacherNip: finalNip,
-        teacherRole: finalRole,
-        rombel,
-        period: "Semester Ganjil 2026/2027",
-        academicYear: "2026/2027",
-        scoreJournal: sJournal,
-        scoreCommunication: sComm,
-        scoreCompetence: sComp,
-        scoreAttendance: sAtt,
-        scoreImprovisation: sImp,
-        totalScore,
-        grade: gradeObj.short,
-        rewardStatus: "DISETUJUI_YAYASAN",
-        rewardTitle,
-        rewardDetail,
-        rewardAmount,
-        evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
-        acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
-        evaluationDate: new Date().toISOString().split("T")[0],
-        notes
-      });
-    });
-
-    return parsedItems
-      .sort((a, b) => b.totalScore - a.totalScore)
-      .map((item, idx) => ({ ...item, rank: idx + 1 }));
-  };
-
-  // 3. Import & Parse Excel File (Lampiran Excel)
+  // EXCEL IMPORT HANDLER (Parses both Matrix format & Rekap table format)
   const handleFileUpload = (e) => {
-    const file = e.target.files && e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
-    setImportFileName(file.name);
-    parseExcelFile(file);
-  };
+    setImportError(null);
+    setImportNotice(null);
 
-  const parseExcelFile = (file) => {
-    setIsProcessingImport(true);
     const reader = new FileReader();
-
     reader.onload = (evt) => {
       try {
-        const buffer = evt.target.result;
-        const data = new Uint8Array(buffer);
-        const wb = XLSX.read(data, {
-          type: "array",
-          cellDates: true,
-          raw: false
-        });
+        const data = new Uint8Array(evt.target?.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
 
-        setCurrentWorkbook(wb);
-        setAvailableSheets(wb.SheetNames || []);
-
-        // Pick best sheet name
-        const preferredSheet = wb.SheetNames.find(
-          n => n.toUpperCase().includes("KPI") ||
-               n.toUpperCase().includes("EVALUASI") ||
-               n.toUpperCase().includes("STANDAR") ||
-               n.toUpperCase().includes("GURU") ||
-               n.toUpperCase().includes("REKAP")
-        ) || wb.SheetNames[0];
-
-        setSelectedSheetName(preferredSheet);
-
-        const ws = wb.Sheets[preferredSheet];
-        const sheetRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-
-        const parsed = processRawSheetRows(sheetRows);
-
-        if (!parsed || parsed.length === 0) {
-          alert("File Excel berhasil dibaca namun tidak ada baris data Guru yang terdeteksi. Silakan periksa isi kolom atau gunakan tab Salin-Tempel (Paste) tabel.");
-          setIsProcessingImport(false);
+        if (!rawRows || rawRows.length < 2) {
+          setImportError("File Excel kosong atau tidak memiliki baris data yang cukup.");
           return;
         }
 
-        setImportPreviewData(parsed);
-        setShowImportModal(true);
-        setIsProcessingImport(false);
-        showToast("Berhasil membaca " + parsed.length + " data Guru dari file Excel!");
+        // Try to detect if it's the 13-indicator matrix sheet or a multi-teacher rekap sheet
+        let detectedScores = {};
+        let isMatrixFormat = false;
+
+        // Check if any row contains codes like "01.00", "01.01", etc.
+        rawRows.forEach(row => {
+          if (!Array.isArray(row)) return;
+          const rowStr = row.join(" ");
+          OFFICIAL_KPI_INDICATORS.forEach(ind => {
+            if (rowStr.includes(ind.code)) {
+              isMatrixFormat = true;
+              // Look for score number in subsequent columns
+              for (let c = 0; c < row.length; c++) {
+                const cellVal = Number(row[c]);
+                if (!isNaN(cellVal) && cellVal > 0 && cellVal <= 100 && row[c] !== ind.no && row[c] !== ind.weight) {
+                  detectedScores[ind.code] = cellVal;
+                }
+              }
+            }
+          });
+        });
+
+        if (isMatrixFormat && Object.keys(detectedScores).length > 0) {
+          // It is a direct 13-indicator matrix sheet!
+          setCurrentScores(prev => ({ ...prev, ...detectedScores }));
+          setImportNotice(`Berhasil membaca ${Object.keys(detectedScores).length} nilai butir indikator dari lampiran Excel! Nilai telah dimasukkan ke lembar penilaian.`);
+          setImportPreviewData([{
+            type: "matrix",
+            detectedCount: Object.keys(detectedScores).length,
+            scores: detectedScores
+          }]);
+        } else {
+          // Parse as multi-teacher list table
+          // Find header row with keywords
+          let headerRowIndex = 0;
+          let highestScore = 0;
+          const keywords = ["nama", "guru", "nip", "total", "skor", "nilai", "kinerja", "perilaku", "predikat", "rombel"];
+
+          rawRows.slice(0, 15).forEach((row, rIdx) => {
+            const matches = row.filter(cell => {
+              const str = String(cell).toLowerCase();
+              return keywords.some(k => str.includes(k));
+            }).length;
+            if (matches > highestScore) {
+              highestScore = matches;
+              headerRowIndex = rIdx;
+            }
+          });
+
+          const headers = rawRows[headerRowIndex].map(h => String(h).trim().toLowerCase());
+          const nameColIdx = headers.findIndex(h => h.includes("nama") || h.includes("guru"));
+          const scoreColIdx = headers.findIndex(h => h.includes("total") || h.includes("skor") || h.includes("nilai"));
+
+          const parsedEvaluations = [];
+          for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
+            const row = rawRows[r];
+            if (!row || row.length === 0) continue;
+            const teacherName = nameColIdx >= 0 ? String(row[nameColIdx] || "").trim() : String(row[1] || "").trim();
+            if (!teacherName || teacherName.toLowerCase().includes("total") || teacherName.toLowerCase().includes("rata-rata")) continue;
+
+            const score = scoreColIdx >= 0 ? (Number(row[scoreColIdx]) || 88) : 88;
+            const gradeInfo = getKpiGradeInfo(score);
+
+            parsedEvaluations.push({
+              id: `kpi-import-${r}-${Date.now()}`,
+              teacherId: `tch-imp-${r}`,
+              teacherName: teacherName,
+              teacherNip: String(row[2] || "-"),
+              teacherRole: "Guru Pengajar",
+              rombel: "Kelas SDIT",
+              period: "Semester Ganjil 2026/2027",
+              academicYear: "2026/2027",
+              subScores: {
+                "01.00": score, "01.01": score, "02.01": score, "02.02": score, "02.03": score,
+                "03.01": score, "03.02": score, "04.02": score, "05.02": score, "06.02": score,
+                "07.02": score, "08.02": score, "09.02": score
+              },
+              totalScore: score,
+              kinerjaScore: Math.round(score * 0.5 * 10) / 10,
+              perilakuScore: Math.round(score * 0.5 * 10) / 10,
+              grade: gradeInfo.short,
+              rewardStatus: "DISETUJUI_YAYASAN",
+              rewardTitle: score >= 90 ? "Juara Guru Berprestasi" : "Apresiasi Kinerja Yayasan",
+              rewardDetail: "Insentif Pencapaian Kinerja",
+              rewardAmount: score >= 90 ? 1000000 : 500000,
+              evaluatorName: "Masykur Rohana, S.Sos (Kepala Sekolah)",
+              acknowledgedBy: "Drs. H. M. Syukri, M.M (Ketua Yayasan)",
+              evaluationDate: new Date().toISOString().split("T")[0],
+              notes: "Data diimpor dari file lampiran Excel."
+            });
+          }
+
+          if (parsedEvaluations.length === 0) {
+            setImportError("Tidak dapat mengenali baris data guru pada file Excel. Pastikan terdapat kolom Nama Guru dan Nilai.");
+            return;
+          }
+
+          setImportPreviewData(parsedEvaluations);
+          setImportNotice(`Berhasil membaca ${parsedEvaluations.length} data evaluasi guru dari file Excel!`);
+        }
       } catch (err) {
-        console.error("Gagal membaca file Excel:", err);
-        alert("Gagal membaca file Excel: " + (err.message || "Pastikan format file .xlsx, .xls, atau .csv valid."));
-        setIsProcessingImport(false);
+        console.error(err);
+        setImportError("Gagal membaca file Excel. Pastikan format file .xlsx / .xls valid.");
       }
     };
-
-    reader.onerror = () => {
-      alert("Terjadi kesalahan sistem saat membaca file dari memori browser.");
-      setIsProcessingImport(false);
-    };
-
     reader.readAsArrayBuffer(file);
   };
 
-  // Change sheet in current workbook
-  const handleSheetChange = (sheetName) => {
-    setSelectedSheetName(sheetName);
-    if (!currentWorkbook || !currentWorkbook.Sheets[sheetName]) return;
-    const ws = currentWorkbook.Sheets[sheetName];
-    const sheetRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-    const parsed = processRawSheetRows(sheetRows);
-    setImportPreviewData(parsed);
-  };
-
-  // Parse direct copied text from Excel / Google Sheets
-  const handleParsePastedText = () => {
-    if (!pastedDataText || !pastedDataText.trim()) {
-      alert("Silakan tempel (Ctrl+V) data tabel Excel terlebih dahulu pada kolom teks.");
+  const handleApplyImport = () => {
+    if (!importPreviewData) return;
+    if (importPreviewData[0]?.type === "matrix") {
+      handleSaveCurrentTeacherEvaluation();
+      setIsImportModalOpen(false);
+      setImportPreviewData(null);
       return;
     }
 
-    try {
-      const lines = pastedDataText.trim().split(/\r?\n/);
-      const sheetRows = lines.map(line => line.split(/\t|,|;/).map(cell => cell.trim()));
+    const merged = [...importPreviewData, ...activeKpiList.filter(k => !importPreviewData.some(p => p.teacherName.toLowerCase() === k.teacherName.toLowerCase()))];
+    updateKpiState(merged);
+    setIsImportModalOpen(false);
+    setImportPreviewData(null);
+  };
 
-      const parsed = processRawSheetRows(sheetRows);
-      if (!parsed || parsed.length === 0) {
-        alert("Tidak ada baris data guru yang dapat dikenali dari teks yang ditempel. Pastikan minimal menyertakan kolom Nama Guru.");
+  // EXPORT TO EXCEL (.xlsx)
+  const handleExportExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Rekapitulasi Seluruh Guru
+      const rekapRows = [
+        ["REKAPITULASI PENILAIAN KINERJA GURU (KPI)"],
+        ["YAYASAN PENDIDIKAN DAARUL HABIBAH - SDIT EL-FATAH"],
+        [`Periode: Semester Ganjil 2026/2027 | Tanggal Ekspor: ${new Date().toLocaleDateString("id-ID")}`],
+        [],
+        ["Peringkat", "Nama Guru", "NIPY", "Jabatan / Rombel", "Skor Kinerja (50%)", "Skor Perilaku (50%)", "Total Nilai Akhir", "Predikat Mutu", "Apresiasi / Hadiah", "Catatan Evaluasi"]
+      ];
+
+      rankedKpiList.forEach((item, idx) => {
+        rekapRows.push([
+          idx + 1,
+          item.teacherName,
+          item.teacherNip || "-",
+          item.rombel || item.teacherRole || "-",
+          item.kinerjaScore || 0,
+          item.perilakuScore || 0,
+          item.totalScore || 0,
+          item.grade || "-",
+          item.rewardTitle || "-",
+          item.notes || "-"
+        ]);
+      });
+
+      const wsRekap = XLSX.utils.aoa_to_sheet(rekapRows);
+      XLSX.utils.book_append_sheet(wb, wsRekap, "Rekapitulasi_KPI");
+
+      // Sheet 2: Matriks 13 Indikator Resmi Guru Terpilih
+      const matrixRows = [
+        ["LEMBAR PENILAIAN INDIKATOR KPI GURU (FORMAT RESMI 13 BUTIR)"],
+        [`Nama Guru: ${selectedTeacherObj.name} | NIP: ${selectedTeacherObj.nip || "-"} | Rombel: ${selectedTeacherObj.gradeClass || "-"}`],
+        [],
+        ["NO", "KLP", "Sasaran Kerja", "Kode", "Ukuran Prestasi Kerja", "Bobot (%)", "Skor (0-100)", "Nilai"]
+      ];
+
+      OFFICIAL_KPI_INDICATORS.forEach(ind => {
+        const rawScore = Number(currentScores[ind.code]) || 0;
+        const nilai = Math.round((rawScore * (ind.weight / 100)) * 100) / 100;
+        matrixRows.push([
+          ind.no,
+          ind.category,
+          ind.targetGoal,
+          ind.code,
+          ind.description,
+          `${ind.weight}%`,
+          rawScore,
+          nilai
+        ]);
+      });
+
+      matrixRows.push([]);
+      matrixRows.push(["", "", "", "", "TOTAL BOBOT & NILAI AKHIR", "100%", "", liveCalculation.totalScore]);
+      matrixRows.push(["", "", "", "", "PREDIKAT CAPAIAN", "", "", liveGradeInfo.short]);
+
+      const wsMatrix = XLSX.utils.aoa_to_sheet(matrixRows);
+      XLSX.utils.book_append_sheet(wb, wsMatrix, "Matriks_13_Indikator");
+
+      XLSX.writeFile(wb, `Standar_KPI_Guru_SDIT_ELFATAH_${new Date().toISOString().split("T")[0]}.xlsx`);
+    } catch (e) {
+      console.error("Gagal export Excel", e);
+    }
+  };
+
+  // DOWNLOAD TEMPLATE EXCEL
+  const handleDownloadTemplate = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+      const templateRows = [
+        ["NO", "KLP", "Sasaran Kerja", "Kode", "Ukuran Prestasi Kerja", "Bobot", "Skor (diisi Kepsek)", "Nilai"]
+      ];
+
+      OFFICIAL_KPI_INDICATORS.forEach(ind => {
+        templateRows.push([
+          ind.no,
+          ind.category,
+          ind.targetGoal,
+          ind.code,
+          ind.description,
+          `${ind.weight}%`,
+          90,
+          `=F${templateRows.length + 1}*G${templateRows.length + 1}`
+        ]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(templateRows);
+      XLSX.utils.book_append_sheet(wb, ws, "Template_KPI_13_Indikator");
+      XLSX.writeFile(wb, "Template_Standar_KPI_Guru_13_Indikator.xlsx");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Helper to open a dedicated print window with full styling (works 100% reliably across all iframes and browsers)
+  const openPrintWindow = (target) => {
+    try {
+      const printWindow = window.open("", "_blank", "width=900,height=800");
+      if (!printWindow) {
+        // If popup was blocked, fallback to standard window.print()
+        window.print();
         return;
       }
 
-      setImportFileName("Tempel_Teks_Excel_Langsung.tsv");
-      setImportPreviewData(parsed);
-      setShowImportModal(true);
-      showToast("Berhasil mengimpor " + parsed.length + " data Guru dari teks tempelan!");
-    } catch (e) {
-      alert("Gagal memproses teks tabel: " + e.message);
+      const scoreDict = target.subScores || currentScores;
+      const rowsHtml = OFFICIAL_KPI_INDICATORS.map((ind) => {
+        const s = Number(scoreDict[ind.code]) || 0;
+        const val = Math.round((s * (ind.weight / 100)) * 100) / 100;
+        return `
+          <tr>
+            <td style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center; font-weight: bold;">${ind.no}</td>
+            <td style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center; font-size: 8.5pt;">${ind.category}</td>
+            <td style="border: 1px solid #1e293b; padding: 6px 8px; font-weight: 600;">${ind.targetGoal}</td>
+            <td style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center; font-family: monospace; font-weight: bold;">${ind.code}</td>
+            <td style="border: 1px solid #1e293b; padding: 6px 8px; font-size: 8.5pt; line-height: 1.35;">${ind.description}</td>
+            <td style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center;">${ind.weightPercent}</td>
+            <td style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center; font-weight: bold;">${s}</td>
+            <td style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center; font-weight: bold; background-color: #f8fafc;">${val.toFixed(2)}</td>
+          </tr>
+        `;
+      }).join("");
+
+      const printHtml = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+          <meta charset="utf-8">
+          <title>Lembar Penilaian KPI - ${target.teacherName}</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 15mm;
+            }
+            body {
+              font-family: "Times New Roman", Times, serif;
+              color: #0f172a;
+              background: #fff;
+              margin: 0;
+              padding: 10px;
+              font-size: 10pt;
+              line-height: 1.4;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #000;
+              padding-bottom: 8px;
+              margin-bottom: 12px;
+            }
+            .header h2 { margin: 0; font-size: 13pt; letter-spacing: 0.5px; }
+            .header h1 { margin: 2px 0; font-size: 16pt; font-weight: bold; }
+            .header p { margin: 0; font-size: 9pt; font-style: italic; color: #334155; }
+            .title-box { text-align: center; margin-bottom: 12px; }
+            .title-box h3 { margin: 0; font-size: 12pt; text-decoration: underline; }
+            .title-box p { margin: 2px 0 0; font-size: 9.5pt; }
+            .meta-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 12px;
+              border: 1px solid #000;
+              padding: 10px;
+              margin-bottom: 14px;
+              font-size: 9.5pt;
+            }
+            .meta-grid div p { margin: 3px 0; }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 14px;
+              font-size: 8.5pt;
+            }
+            th {
+              background-color: #e2e8f0;
+              border: 1px solid #1e293b;
+              padding: 6px 8px;
+              text-align: center;
+              font-weight: bold;
+            }
+            .footer-row {
+              background-color: #f1f5f9;
+              font-weight: bold;
+              font-size: 9.5pt;
+            }
+            .notes-box {
+              border: 1px solid #000;
+              padding: 8px 10px;
+              margin-bottom: 16px;
+              font-size: 9pt;
+            }
+            .signatures {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              text-align: center;
+              margin-top: 20px;
+              page-break-inside: avoid;
+              font-size: 9.5pt;
+            }
+            .sign-space {
+              height: 55px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: #94a3b8;
+              font-family: monospace;
+              font-size: 8pt;
+            }
+            .action-bar {
+              margin-bottom: 15px;
+              padding: 10px;
+              background: #f8fafc;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            @media print {
+              .action-bar { display: none !important; }
+              body { padding: 0 !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="action-bar">
+            <span><strong>Lembar Penilaian Kinerja Guru (KPI 13 Indikator)</strong> — Siap Cetak</span>
+            <button onclick="window.print()" style="background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-weight:bold;cursor:pointer;">
+              🖨️ Cetak / Simpan PDF Sekarang
+            </button>
+          </div>
+
+          <div class="header">
+            <h2>YAYASAN PENDIDIKAN DAARUL HABIBAH</h2>
+            <h1>SDIT EL-FATAH</h1>
+            <p>Jl. Raya Kresek No. 12, Sukamulya, Kab. Tangerang, Banten 15610 | Email: sdit.elfatah@gmail.com</p>
+          </div>
+
+          <div class="title-box">
+            <h3>LEMBAR PENILAIAN INDIKATOR KINERJA GURU (KPI) RESMI</h3>
+            <p>Tahun Ajaran 2026/2027 — Semester Ganjil</p>
+          </div>
+
+          <div class="meta-grid">
+            <div>
+              <p><strong>Nama Guru:</strong> ${target.teacherName}</p>
+              <p><strong>NIPY:</strong> ${target.teacherNip || "-"}</p>
+              <p><strong>Jabatan/Tugas:</strong> ${target.teacherRole || "Guru Pengajar"}</p>
+            </div>
+            <div>
+              <p><strong>Rombongan Belajar:</strong> ${target.rombel || "-"}</p>
+              <p><strong>Tanggal Penilaian:</strong> ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</p>
+              <p><strong>Pejabat Penilai:</strong> Masykur Rohana, S.Sos (Kepala Sekolah)</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 30px;">NO</th>
+                <th style="width: 55px;">KLP</th>
+                <th style="width: 140px;">Sasaran Kerja</th>
+                <th style="width: 45px;">Kode</th>
+                <th>Ukuran Prestasi Kerja (Indikator)</th>
+                <th style="width: 45px;">Bobot</th>
+                <th style="width: 45px;">Skor</th>
+                <th style="width: 50px;">Nilai</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+            <tfoot>
+              <tr class="footer-row">
+                <td colspan="5" style="border: 1px solid #1e293b; padding: 6px 8px; text-align: right; text-transform: uppercase;">
+                  Total Akumulasi Bobot & Nilai Akhir :
+                </td>
+                <td style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center;">100%</td>
+                <td style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center;">-</td>
+                <td style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center; font-size: 10pt; background: #e0f2fe;">
+                  ${Number(target.totalScore || 0).toFixed(2)}
+                </td>
+              </tr>
+              <tr class="footer-row">
+                <td colspan="5" style="border: 1px solid #1e293b; padding: 6px 8px; text-align: right; text-transform: uppercase;">
+                  Predikat Mutu & Status Apresiasi :
+                </td>
+                <td colspan="3" style="border: 1px solid #1e293b; padding: 6px 8px; text-align: center; font-size: 10pt;">
+                  ${target.grade || "Sangat Baik (A)"} (${target.rewardTitle || "Apresiasi Yayasan"})
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="notes-box">
+            <strong>Catatan & Rekomendasi Kepala Sekolah:</strong>
+            <p style="margin: 4px 0 0; font-style: italic;">
+              "${target.notes || "Kinerja sangat baik dan memenuhi standar yayasan."}"
+            </p>
+          </div>
+
+          <div class="signatures">
+            <div>
+              <p>Guru yang Dinilai,</p>
+              <div class="sign-space">[ Tanda Tangan Digital ]</div>
+              <p><strong><u>${target.teacherName}</u></strong></p>
+              <p style="font-size: 8.5pt;">NIPY. ${target.teacherNip || "-"}</p>
+            </div>
+            <div>
+              <p>Tangerang, ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</p>
+              <p>Kepala Sekolah SDIT EL-FATAH,</p>
+              <div class="sign-space">[ CAP RESMI & TTD DIGITAL ]</div>
+              <p><strong><u>Masykur Rohana, S.Sos</u></strong></p>
+              <p style="font-size: 8.5pt;">NIPY. 20190701</p>
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 400);
+            };
+          </script>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.open();
+      printWindow.document.write(printHtml);
+      printWindow.document.close();
+    } catch (err) {
+      console.warn("Direct popup print fallback to window.print:", err);
+      window.print();
     }
   };
 
-  // 4. Commit Import Data to State & Persistence
-  const handleApplyImport = () => {
-    if (!importPreviewData || importPreviewData.length === 0) return;
+  // PRINT OFFICIAL EVALUATION SHEET
+  const handlePrint = (itemToPrint) => {
+    const target = itemToPrint || {
+      teacherName: selectedTeacherObj.name,
+      teacherNip: selectedTeacherObj.nip,
+      teacherRole: selectedTeacherObj.role,
+      rombel: selectedTeacherObj.gradeClass,
+      period: "Semester Ganjil 2026/2027",
+      academicYear: "2026/2027",
+      subScores: currentScores,
+      totalScore: liveCalculation.totalScore,
+      kinerjaScore: liveCalculation.kinerjaScore,
+      perilakuScore: liveCalculation.perilakuScore,
+      grade: liveGradeInfo.short,
+      rewardTitle: liveCalculation.totalScore >= 95 ? "Juara 1 Guru Teladan & Berprestasi" : "Apresiasi Kinerja Yayasan",
+      rewardAmount: liveCalculation.totalScore >= 95 ? 1500000 : 500000,
+      notes: evaluationNotes || "Telah memenuhi standar evaluasi kinerja yayasan dengan sangat baik."
+    };
 
-    let finalKpiList = [];
-    if (importMode === "REPLACE") {
-      finalKpiList = [...importPreviewData];
+    setPrintTargetEvaluation(target);
+    setIsPrintModalOpen(true);
+  };
+
+  const handleExecutePrint = () => {
+    if (printTargetEvaluation) {
+      openPrintWindow(printTargetEvaluation);
     } else {
-      // Append or update existing
-      const existingMap = new Map(kpiList.map(item => [item.teacherName.toLowerCase(), item]));
-      importPreviewData.forEach(item => {
-        existingMap.set(item.teacherName.toLowerCase(), item);
-      });
-      finalKpiList = Array.from(existingMap.values())
-        .sort((a, b) => b.totalScore - a.totalScore)
-        .map((item, idx) => ({ ...item, rank: idx + 1 }));
-    }
-
-    if (onBulkSetKpi) {
-      onBulkSetKpi(finalKpiList);
-    } else {
-      finalKpiList.forEach(item => {
-        if (onAddKpi) onAddKpi(item);
-      });
-    }
-
-    setShowImportModal(false);
-    setImportPreviewData([]);
-    setPastedDataText("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    showToast("Sukses! " + finalKpiList.length + " data Guru dari Lampiran Excel berhasil dijadikan Standar KPI!");
-  };
-
-  // 5. Fast-Apply Benchmark Default KPI Standard
-  const handleApplyOfficialStandard = () => {
-    if (confirm("Apakah Anda yakin ingin menerapkan Standar Baku Excel KPI Yayasan 2026/2027 untuk seluruh Guru SDIT EL-FATAH?")) {
-      if (onBulkSetKpi) {
-        onBulkSetKpi(initialKpiEvaluations);
-      }
-      showToast("Standar Baku Excel KPI Guru Yayasan berhasil diterapkan!");
-    }
-  };
-
-  // Drag & Drop event handlers
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  };
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const files = e.dataTransfer && e.dataTransfer.files;
-    if (files && files.length > 0) {
-      setImportFileName(files[0].name);
-      parseExcelFile(files[0]);
+      window.print();
     }
   };
 
   return (
-    <div
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      className="space-y-6 print:p-0 relative"
-    >
-      {/* Hidden Universal File Input for Excel Import */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileUpload}
-        accept=".xlsx, .xls, .csv, .xlsm, .xlsb, .ods, .tsv, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-        className="hidden"
-      />
-
-      {/* Drag & Drop Visual Overlay */}
-      {isDragOver && (
-        <div className="fixed inset-0 z-50 bg-emerald-950/80 backdrop-blur-md flex flex-col items-center justify-center border-4 border-dashed border-emerald-400 p-6 text-white animate-in fade-in">
-          <FileSpreadsheet className="w-16 h-16 text-emerald-400 mb-4 animate-bounce" />
-          <h3 className="text-2xl font-black">Lepaskan File Excel di Sini</h3>
-          <p className="text-sm text-emerald-200 mt-1">Mendukung format .xlsx, .xls, .csv, .xlsm, .ods</p>
-        </div>
-      )}
-
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5">
-          <div className="w-7 h-7 bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center justify-center font-black">
-            ✓
+    <div id="kpi-module-container" className="space-y-6 pb-12 font-sans">
+      {/* HEADER BANNER */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border border-slate-800">
+        <div className="absolute right-0 top-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                <FileSpreadsheet className="w-3.5 h-3.5 text-blue-400" /> Standar Baku Lampiran Excel
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> 13 Butir Indikator Resmi
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" /> Insentif & Juara Guru
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+              <Award className="w-8 h-8 text-amber-400 shrink-0" />
+              Penilaian Kinerja Guru (KPI) Standar Excel Resmi
+            </h1>
+            <p className="text-slate-300 text-sm sm:text-base max-w-3xl leading-relaxed">
+              Modul evaluasi terintegrasi SDIT EL-FATAH berbasis 13 butir matriks indikator Sasaran Kinerja (50%) dan Perilaku Kerja (50%) sesuai lampiran format Excel yayasan.
+            </p>
           </div>
-          <p className="text-xs font-bold text-slate-200">{toastMessage.msg}</p>
-        </div>
-      )}
 
-      {/* 1. Header Hero Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl border border-indigo-900/50 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="space-y-3 relative z-10">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 text-amber-300 text-xs font-black rounded-full border border-amber-500/30">
-              <Award className="w-4 h-4 text-amber-400" />
-              Standar Baku KPI Yayasan Berdasarkan Lampiran Excel
-            </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/20 text-emerald-300 text-[11px] font-bold rounded-full border border-emerald-500/30">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              Akses Terbuka & Penuh (Full Access)
-            </span>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              <Upload className="w-4 h-4" /> Impor Excel
+            </button>
+            <button
+              onClick={handleExportExcel}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              <Download className="w-4 h-4" /> Ekspor Excel (.xlsx)
+            </button>
+            <button
+              onClick={() => handlePrint()}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-slate-300" /> Cetak Lembar Resmi
+            </button>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-            Evaluasi Kinerja Guru & Penghargaan Guru Teladan
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-            Pengukuran objektif berbasis 5 Indikator Baku: <strong>Jurnal Mengajar (25%)</strong>, <strong>Komunikasi Prestasi Siswa & Ortu (20%)</strong>, <strong>Capaian Kompetensi (30%)</strong>, <strong>Kehadiran & Disiplin (10%)</strong>, & <strong>Inovasi KBM (15%)</strong> dengan Hadiah & Piagam Resmi Yayasan.
-          </p>
         </div>
 
-        <div className="flex flex-wrap sm:flex-nowrap gap-2.5 relative z-10">
-          <button
-            onClick={() => fileInputRef.current && fileInputRef.current.click()}
-            disabled={isProcessingImport}
-            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-bold text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition cursor-pointer active:scale-95 disabled:opacity-50"
-            title="Unggah Lampiran File Excel (.xlsx / .xls / .csv) untuk dijadikan Standar Data KPI Guru"
-          >
-            <Upload className="w-4 h-4 text-emerald-200" />
-            <span>{isProcessingImport ? "Membaca Excel..." : "Import Lampiran Excel"}</span>
-          </button>
-
-          <button
-            onClick={openAddModal}
-            className="px-3.5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Input KPI</span>
-          </button>
-
-          <button
-            onClick={handleDownloadExcelTemplate}
-            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 font-bold text-xs rounded-xl shadow flex items-center justify-center gap-1.5 transition cursor-pointer"
-            title="Unduh Template Excel Resmi dengan Rumus Baku KPI Guru"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>Template Excel</span>
-          </button>
-
-          <button
-            onClick={handleExportExcel}
-            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl shadow flex items-center justify-center gap-1.5 transition cursor-pointer"
-            title="Unduh Rekapitulasi Nilai KPI ke File Excel (.xlsx)"
-          >
-            <Download className="w-4 h-4 text-slate-300" />
-            <span>Export Rekap</span>
-          </button>
-
-          <button
-            onClick={() => setShowIndicatorsGuide(!showIndicatorsGuide)}
-            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl shadow flex items-center justify-center gap-1.5 transition cursor-pointer"
-            title="Lihat Rubrik & Rincian Bobot Indikator Excel"
-          >
-            <HelpCircle className="w-4 h-4 text-sky-400" />
-            <span>Rubrik Bobot</span>
-          </button>
-        </div>
+        {saveSuccessNotice && (
+          <div className="mt-4 p-3.5 bg-emerald-950/80 border border-emerald-500/60 rounded-xl text-emerald-200 text-sm flex items-center justify-between gap-3 animate-fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <span><strong>Berhasil!</strong> Penilaian 13 butir KPI guru <strong>{selectedTeacherObj.name}</strong> telah disimpan ke database yayasan.</span>
+            </div>
+            <button onClick={() => setSaveSuccessNotice(false)} className="text-emerald-400 hover:text-white font-bold text-xs">TUTUP</button>
+          </div>
+        )}
       </div>
 
-      {/* Banner Notifikasi Sinkronisasi Standar Excel & Quick Uploader Bar */}
-      <div className="bg-emerald-950/40 border border-emerald-800/60 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-emerald-200 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 flex-shrink-0">
-            <FileSpreadsheet className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-black text-white flex items-center gap-2">
-              <span>Standar Perhitungan Lampiran Excel Aktif</span>
-              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] rounded-full border border-emerald-500/30 font-bold">100% Terkalibrasi & Terbuka</span>
-            </h4>
-            <p className="text-[11px] text-emerald-300/90 leading-relaxed">
-              Formula tertimbang: <strong>(Jurnal × 25%) + (Komunikasi × 20%) + (Kompetensi × 30%) + (Kehadiran × 10%) + (Inovasi × 15%)</strong>. Format didukung: <strong>.xlsx, .xls, .csv, .xlsm, .ods, .tsv</strong> atau Tempel Teks.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => fileInputRef.current && fileInputRef.current.click()}
-            className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow whitespace-nowrap cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Pilih File Excel</span>
-          </button>
-
-          <button
-            onClick={handleApplyOfficialStandard}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow whitespace-nowrap cursor-pointer"
-            title="Kembalikan data ke Standar Baku Excel Resmi Yayasan"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-            <span>Reset ke Standar Baku Excel</span>
-          </button>
-        </div>
+      {/* NAVIGATION TABS */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setActiveTab("matrix")}
+          className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === "matrix"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+              : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4" /> Lembar Matriks Tabel Excel (13 Indikator)
+        </button>
+        <button
+          onClick={() => setActiveTab("rekap")}
+          className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === "rekap"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+              : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+          }`}
+        >
+          <Trophy className="w-4 h-4" /> Rekapitulasi & Podium Guru ({rankedKpiList.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("rubrik")}
+          className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === "rubrik"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+              : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+          }`}
+        >
+          <Layers className="w-4 h-4" /> Standar Baku & Bobot Yayasan
+        </button>
       </div>
 
-      {/* 2. Statistics Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500">Rata-rata Skor Yayasan</p>
-            <p className="text-2xl font-black text-indigo-600 font-mono">
-              {avgScore} <span className="text-xs text-slate-400 font-normal">/ 100</span>
-            </p>
-            <p className="text-[11px] text-emerald-600 font-bold mt-0.5">Kategori: Memuaskan</p>
-          </div>
-          <div className="p-3.5 bg-indigo-50 text-indigo-700 rounded-2xl">
-            <TrendingUp className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500">Total Alokasi Hadiah & Reward</p>
-            <p className="text-2xl font-black text-emerald-600 font-mono">
-              {formatCurrency(totalRewardsAllocated)}
-            </p>
-            <p className="text-[11px] text-slate-500 font-medium mt-0.5">Disetujui Ketua Yayasan</p>
-          </div>
-          <div className="p-3.5 bg-emerald-50 text-emerald-700 rounded-2xl">
-            <DollarSign className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500">Guru Teladan & Berprestasi</p>
-            <p className="text-2xl font-black text-amber-600 font-mono">
-              {excellentTeachersCount} <span className="text-xs text-slate-400 font-normal">Guru (Skor ≥ 90)</span>
-            </p>
-            <p className="text-[11px] text-amber-600 font-bold mt-0.5">Kandidat Piagam Penghargaan</p>
-          </div>
-          <div className="p-3.5 bg-amber-50 text-amber-700 rounded-2xl">
-            <Trophy className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500">Total Guru Tervalidasi</p>
-            <p className="text-2xl font-black text-slate-800 font-mono">
-              {filteredList.length} <span className="text-xs text-slate-400 font-normal">Tenaga Pendidik</span>
-            </p>
-            <p className="text-[11px] text-slate-500 font-medium mt-0.5">Semester Ganjil 2026/2027</p>
-          </div>
-          <div className="p-3.5 bg-slate-100 text-slate-700 rounded-2xl">
-            <Users className="w-6 h-6" />
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Panduan Rubrik Bobot Indikator Excel (Collapsible / Modal Drawer) */}
-      {showIndicatorsGuide && (
-        <div className="bg-slate-900 text-white p-6 rounded-3xl border border-slate-800 shadow-2xl space-y-6 animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
-                <FileSpreadsheet className="w-5 h-5" />
+      {/* ========================================================================= */}
+      {/* TAB 1: LEMBAR MATRIKS TABEL EXCEL RESMI (13 INDIKATOR) */}
+      {/* ========================================================================= */}
+      {activeTab === "matrix" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* TEACHER PICKER & CONTROLLER BAR */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+                <Users className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-white">Standar Rubrik & Bobot Lampiran Excel Yayasan SDIT EL-FATAH</h3>
-                <p className="text-xs text-slate-400">Dasar penilaian kinerja guru yang disahkan Kepala Sekolah & Yayasan</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowIndicatorsGuide(false)}
-              className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {KPI_INDICATOR_STANDARDS.map((ind) => {
-              const Icon = ind.icon;
-              return (
-                <div key={ind.id} className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between space-y-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-black rounded-md border border-indigo-500/30">
-                        {ind.code}
-                      </span>
-                      <span className="text-xs font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                        Bobot {ind.weightPercent}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 pt-1">
-                      <div className={"p-2 rounded-xl bg-gradient-to-br " + ind.color + " text-white shadow-sm"}>
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <h4 className="text-xs font-bold text-slate-200 line-clamp-2 leading-snug">
-                        {ind.name}
-                      </h4>
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      {ind.description}
-                    </p>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-700/60 space-y-1.5 text-[10px]">
-                    <p className="font-bold text-slate-300">Kriteria Skor:</p>
-                    {ind.rubric.slice(0, 2).map((r, i) => (
-                      <div key={i} className="flex items-start gap-1 text-slate-400">
-                        <span className="text-emerald-400 font-bold font-mono">{r.score}:</span>
-                        <span className="line-clamp-1">{r.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Reward Scale Explanation */}
-          <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-            <div className="space-y-1">
-              <span className="font-black text-amber-400 flex items-center gap-1.5">
-                <Trophy className="w-4 h-4" /> Alokasi Hadiah Prestasi Guru Yayasan
-              </span>
-              <p className="text-slate-300">
-                Juara 1: <strong>Rp 1.500.000 + Piagam</strong> | Juara 2: <strong>Rp 1.000.000 + Piagam</strong> | Juara 3: <strong>Rp 750.000 + Piagam</strong> | Insentif Memuaskan: <strong>Rp 500.000</strong>
-              </p>
-            </div>
-            <button
-              onClick={handleDownloadExcelTemplate}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center gap-2 flex-shrink-0 cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              <span>Unduh File Excel Standar</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Top 3 Leaderboard Guru Teladan */}
-      <div className="bg-gradient-to-b from-amber-500/10 via-white to-white p-6 rounded-3xl border border-amber-200/80 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-amber-500 text-slate-950 rounded-xl shadow">
-              <Trophy className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900">
-                Podium Penghargaan Guru Teladan Yayasan
-              </h3>
-              <p className="text-xs text-slate-500">
-                Berdasarkan akumulasi skor 5 Indikator Baku Excel
-              </p>
-            </div>
-          </div>
-          <span className="px-3 py-1 bg-amber-100 text-amber-900 text-xs font-black rounded-full border border-amber-300">
-            Top 3 Terbaik
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-          {top3.map((teacher, idx) => {
-            const podiumColors = [
-              { border: "border-amber-400", badge: "bg-amber-500 text-slate-950", title: "Juara 1 Guru Teladan", rank: "1st" },
-              { border: "border-slate-300", badge: "bg-slate-300 text-slate-900", title: "Juara 2 Guru Inovatif", rank: "2nd" },
-              { border: "border-amber-600", badge: "bg-amber-700 text-white", title: "Juara 3 Guru Inspiratif", rank: "3rd" }
-            ][idx];
-
-            return (
-              <div
-                key={teacher.id}
-                className={"bg-white p-5 rounded-2xl border-2 " + podiumColors.border + " shadow-sm flex flex-col justify-between relative overflow-hidden space-y-4 hover:shadow-md transition"}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={"w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shadow-sm " + podiumColors.badge}>
-                      {podiumColors.rank}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-slate-900 leading-tight">
-                        {teacher.teacherName}
-                      </h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {teacher.rombel}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-medium">Skor Akhir:</span>
-                    <span className="text-base font-black font-mono text-indigo-700">
-                      {teacher.totalScore.toFixed(2)} / 100
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-medium">Hadiah Yayasan:</span>
-                    <span className="font-mono font-bold text-emerald-700">
-                      {formatCurrency(teacher.rewardAmount)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[11px] font-bold text-amber-800">
-                    {teacher.rewardTitle}
-                  </span>
-                  <button
-                    onClick={() => setViewCertificate(teacher)}
-                    className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
-                    title="Cetak Piagam Penghargaan Resmi"
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Pilih Guru Yang Dinilai:
+                </label>
+                <div className="flex items-center gap-2 mt-1">
+                  <select
+                    value={selectedTeacherId}
+                    onChange={(e) => handleSelectTeacher(e.target.value)}
+                    className="px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Piagam</span>
-                  </button>
+                    {teachers.length > 0
+                      ? teachers.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.role || t.position || "Guru"} - {t.gradeClass || "Kelas"})
+                          </option>
+                        ))
+                      : activeKpiList.map((k) => (
+                          <option key={k.id} value={k.teacherId || k.id}>
+                            {k.teacherName} ({k.rombel || "Guru"})
+                          </option>
+                        ))}
+                  </select>
+                  
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={handlePrevTeacher}
+                      title="Guru Sebelumnya"
+                      className="p-2 border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-600 cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleNextTeacher}
+                      title="Guru Berikutnya"
+                      className="p-2 border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-600 cursor-pointer"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </div>
 
-      {/* 5. Filter & Search Controls */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-72">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama guru, NIP, atau kelas..."
-              className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="ALL">Semua Periode</option>
-            <option value="Semester Ganjil 2026/2027">Semester Ganjil 2026/2027</option>
-            <option value="Semester Genap 2025/2026">Semester Genap 2025/2026</option>
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-          <span>Menampilkan <strong>{filteredList.length}</strong> Guru</span>
-        </div>
-      </div>
-
-      {/* 6. Main Data Table: Standar Nilai KPI Guru */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
-              <tr>
-                <th className="py-3.5 px-4 text-center">Rank</th>
-                <th className="py-3.5 px-4">Nama Guru & Tugas</th>
-                <th className="py-3.5 px-3 text-center" title="Bobot 25%">
-                  1. Jurnal (25%)
-                </th>
-                <th className="py-3.5 px-3 text-center" title="Bobot 20%">
-                  2. Komunikasi (20%)
-                </th>
-                <th className="py-3.5 px-3 text-center" title="Bobot 30%">
-                  3. Kompetensi (30%)
-                </th>
-                <th className="py-3.5 px-3 text-center" title="Bobot 10%">
-                  4. Kehadiran (10%)
-                </th>
-                <th className="py-3.5 px-3 text-center" title="Bobot 15%">
-                  5. Inovasi (15%)
-                </th>
-                <th className="py-3.5 px-4 text-center">
-                  Total Skor
-                </th>
-                <th className="py-3.5 px-4">
-                  Predikat & Hadiah
-                </th>
-                <th className="py-3.5 px-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {filteredList.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
-                    <FileSpreadsheet className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-                    <p className="font-bold">Tidak ada data KPI yang cocok.</p>
-                    <p className="text-[11px] mt-1">Unggah file Excel atau klik "Reset ke Standar Baku Excel" untuk memuat data awal.</p>
-                  </td>
-                </tr>
-              ) : (
-                filteredList.map((item) => {
-                  const gradeObj = getKpiGradeInfo(item.totalScore);
-                  return (
-                    <tr key={item.id} className="hover:bg-slate-50/80 transition group">
-                      <td className="py-4 px-4 text-center font-black">
-                        {item.rank === 1 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-amber-500 text-slate-950 rounded-full font-black text-xs shadow-sm">
-                            1
-                          </span>
-                        ) : item.rank === 2 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-slate-300 text-slate-900 rounded-full font-black text-xs shadow-sm">
-                            2
-                          </span>
-                        ) : item.rank === 3 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-amber-700 text-white rounded-full font-black text-xs shadow-sm">
-                            3
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-bold">{item.rank}</span>
-                        )}
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <div className="font-bold text-slate-900 text-xs group-hover:text-indigo-600 transition">
-                          {item.teacherName}
-                        </div>
-                        <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                          <span>NIP: {item.teacherNip}</span>
-                          <span>•</span>
-                          <span className="font-medium text-slate-600">{item.rombel}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-3 text-center font-mono font-bold text-slate-700">
-                        {item.scoreJournal}
-                      </td>
-                      <td className="py-4 px-3 text-center font-mono font-bold text-slate-700">
-                        {item.scoreCommunication}
-                      </td>
-                      <td className="py-4 px-3 text-center font-mono font-bold text-slate-700">
-                        {item.scoreCompetence}
-                      </td>
-                      <td className="py-4 px-3 text-center font-mono font-bold text-slate-700">
-                        {item.scoreAttendance}
-                      </td>
-                      <td className="py-4 px-3 text-center font-mono font-bold text-slate-700">
-                        {item.scoreImprovisation}
-                      </td>
-
-                      <td className="py-4 px-4 text-center">
-                        <div className="font-black text-sm text-indigo-700 font-mono">
-                          {item.totalScore.toFixed(2)}
-                        </div>
-                        <div className="w-16 bg-slate-200 rounded-full h-1.5 mx-auto mt-1 overflow-hidden">
-                          <div
-                            className={"h-full " + (
-                              item.totalScore >= 90
-                                ? "bg-emerald-500"
-                                : item.totalScore >= 80
-                                ? "bg-blue-500"
-                                : item.totalScore >= 70
-                                ? "bg-amber-500"
-                                : "bg-rose-500"
-                            )}
-                            style={{ width: `${Math.min(100, item.totalScore)}%` }}
-                          />
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <span className={"inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black border " + gradeObj.badge}>
-                          <span className={"w-1.5 h-1.5 rounded-full " + gradeObj.dot} />
-                          {item.grade}
-                        </span>
-                        {item.rewardTitle && (
-                          <div className="text-[11px] font-bold text-amber-700 mt-1 flex items-center gap-1">
-                            <Trophy className="w-3 h-3 text-amber-500 flex-shrink-0" />
-                            <span className="truncate max-w-[180px]">{item.rewardTitle}</span>
-                          </div>
-                        )}
-                        {item.rewardAmount > 0 && (
-                          <div className="text-[10px] font-mono font-bold text-emerald-600">
-                            {formatCurrency(item.rewardAmount)}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="py-4 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setViewCertificate(item)}
-                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition cursor-pointer"
-                            title="Cetak Piagam Penghargaan Resmi"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => openEditModal(item)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                            title="Edit Nilai KPI"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm("Hapus penilaian KPI untuk " + item.teacherName + "?")) {
-                                if (onDeleteKpi) onDeleteKpi(item.id);
-                                showToast("Penilaian KPI " + item.teacherName + " telah dihapus.");
-                              }
-                            }}
-                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="Hapus Data KPI"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* 7. Modal Dialog Import Lampiran Excel (Universal & Multi-Format) */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200">
-                  <FileSpreadsheet className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-900">
-                    Konfirmasi Import Lampiran Excel Standar KPI
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Sumber: <strong className="text-slate-800">{importFileName}</strong> • Terdeteksi <strong>{importPreviewData.length}</strong> Guru
-                  </p>
-                </div>
-              </div>
+            {/* QUICK BATCH SCORING SHORTCUTS */}
+            <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+              <span className="text-xs font-bold text-slate-500 px-2">Set Cepat Semua Butir:</span>
+              {[100, 95, 90, 85, 80].map((scoreVal) => (
+                <button
+                  key={scoreVal}
+                  onClick={() => handleQuickBatchSet(scoreVal)}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-slate-700 transition cursor-pointer"
+                >
+                  {scoreVal}
+                </button>
+              ))}
               <button
-                onClick={() => setShowImportModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                onClick={() => handleQuickBatchSet(90)}
+                title="Reset ke Standar 90"
+                className="p-1 text-slate-400 hover:text-slate-700 rounded cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
 
-            {/* Sheet Selector if multiple sheets exist */}
-            {availableSheets.length > 1 && (
-              <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex items-center justify-between gap-3 text-xs flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-indigo-600" />
-                  <span className="font-bold text-indigo-900">Pilih Lembar Kerja (Sheet):</span>
+          {/* TEACHER IDENTITY & SCORE SUMMARY CARD */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm grid grid-cols-1 lg:grid-cols-4 gap-6 items-center">
+            <div className="lg:col-span-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+                  {selectedTeacherObj.role || "Guru Pengajar"}
+                </span>
+                <span className="text-xs text-slate-500">
+                  NIP: <strong className="text-slate-700">{selectedTeacherObj.nip || "-"}</strong>
+                </span>
+              </div>
+              <h2 className="text-xl font-black text-slate-900">
+                {selectedTeacherObj.name}
+              </h2>
+              <p className="text-xs text-slate-500 flex items-center gap-2">
+                <span>Rombel: <strong>{selectedTeacherObj.gradeClass || "Semua Rombel"}</strong></span>
+                <span>•</span>
+                <span>Periode: <strong>Semester Ganjil 2026/2027</strong></span>
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-center">
+                <span className="text-[11px] font-bold text-blue-700 uppercase">Subtotal Kinerja</span>
+                <div className="text-lg font-black text-blue-900 mt-0.5">
+                  {liveCalculation.kinerjaScore.toFixed(2)}
+                  <span className="text-xs text-blue-500 font-normal"> / 50</span>
                 </div>
-                <select
-                  value={selectedSheetName}
-                  onChange={(e) => handleSheetChange(e.target.value)}
-                  className="px-3 py-1 bg-white border border-indigo-200 rounded-lg text-xs font-bold text-indigo-900 focus:outline-none"
-                >
-                  {availableSheets.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
               </div>
-            )}
+              <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl text-center">
+                <span className="text-[11px] font-bold text-purple-700 uppercase">Subtotal Perilaku</span>
+                <div className="text-lg font-black text-purple-900 mt-0.5">
+                  {liveCalculation.perilakuScore.toFixed(2)}
+                  <span className="text-xs text-purple-500 font-normal"> / 50</span>
+                </div>
+              </div>
+            </div>
 
-            {/* Import Mode Toggle */}
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs flex-shrink-0">
-              <div>
-                <span className="font-bold text-slate-700">Metode Penerapan Standar:</span>
-                <p className="text-slate-500 text-[11px]">Pilih bagaimana data Excel ini diterapkan ke dalam sistem</p>
+            <div className="p-4 bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-2xl flex flex-col justify-center items-center text-center">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Nilai Akhir</span>
+              <div className="text-3xl font-black text-indigo-700 tracking-tight my-0.5">
+                {liveCalculation.totalScore.toFixed(2)}
               </div>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${liveGradeInfo.badge}`}>
+                {liveGradeInfo.short}
+              </span>
+            </div>
+          </div>
+
+          {/* THE OFFICIAL 13-ROW EXCEL MATRIX TABLE */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+                  Tabel Format Lampiran Excel (13 Indikator Standar Yayasan)
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Setiap skor butir (0-100) langsung dikalikan dengan bobot untuk menghasilkan nilai akumulatif otomatis.
+                </p>
+              </div>
+
               <div className="flex items-center gap-2">
                 <button
-                  type="button"
-                  onClick={() => setImportMode("REPLACE")}
-                  className={"px-3.5 py-1.5 rounded-xl font-bold transition cursor-pointer " + (
-                    importMode === "REPLACE"
-                      ? "bg-emerald-600 text-white shadow-sm"
-                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                  )}
+                  onClick={handleDownloadTemplate}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition cursor-pointer"
+                  title="Unduh Template Excel Format Ini"
                 >
-                  Gantikan Semua Standar Lama
+                  <Download className="w-3.5 h-3.5" /> Unduh Template
                 </button>
                 <button
-                  type="button"
-                  onClick={() => setImportMode("APPEND")}
-                  className={"px-3.5 py-1.5 rounded-xl font-bold transition cursor-pointer " + (
-                    importMode === "APPEND"
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                  )}
+                  onClick={handleSaveCurrentTeacherEvaluation}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md transition active:scale-95 cursor-pointer"
                 >
-                  Gabungkan & Update
+                  <Check className="w-4 h-4" /> Simpan Nilai Guru Ini
                 </button>
               </div>
             </div>
 
-            {/* Preview Table */}
-            <div className="flex-1 overflow-y-auto border border-slate-200 rounded-2xl">
-              <table className="w-full text-left text-xs text-slate-600">
-                <thead className="bg-slate-100 text-[11px] font-black text-slate-700 sticky top-0 border-b border-slate-200">
-                  <tr>
-                    <th className="py-2.5 px-3 text-center">Rank</th>
-                    <th className="py-2.5 px-3">Nama Guru</th>
-                    <th className="py-2.5 px-2 text-center">Jurnal (25%)</th>
-                    <th className="py-2.5 px-2 text-center">Komunikasi (20%)</th>
-                    <th className="py-2.5 px-2 text-center">Kompetensi (30%)</th>
-                    <th className="py-2.5 px-2 text-center">Kehadiran (10%)</th>
-                    <th className="py-2.5 px-2 text-center">Inovasi (15%)</th>
-                    <th className="py-2.5 px-3 text-center">Total Skor</th>
-                    <th className="py-2.5 px-3">Predikat & Hadiah</th>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 uppercase font-black tracking-wider text-[11px] border-b border-slate-300">
+                    <th className="py-3 px-2 text-center border-r border-slate-300 w-12">NO</th>
+                    <th className="py-3 px-3 text-center border-r border-slate-300 w-24">KLP</th>
+                    <th className="py-3 px-3 border-r border-slate-300 w-48">Sasaran Kerja</th>
+                    <th className="py-3 px-2 text-center border-r border-slate-300 w-16">Kode</th>
+                    <th className="py-3 px-4 border-r border-slate-300">Ukuran Prestasi Kerja (Indikator)</th>
+                    <th className="py-3 px-3 text-center border-r border-slate-300 w-20">Bobot</th>
+                    <th className="py-3 px-3 text-center border-r border-slate-300 w-32 bg-amber-50 text-amber-900">
+                      Skor (0-100)<br/><span className="text-[9px] font-normal lowercase">(diisi Kepsek)</span>
+                    </th>
+                    <th className="py-3 px-3 text-center w-24 bg-blue-50 text-blue-900">Nilai</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {importPreviewData.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="py-2 px-3 text-center font-bold">{idx + 1}</td>
-                      <td className="py-2 px-3">
-                        <div className="font-bold text-slate-900">{row.teacherName}</div>
-                        <div className="text-[10px] text-slate-400">{row.rombel}</div>
-                      </td>
-                      <td className="py-2 px-2 text-center font-mono">{row.scoreJournal}</td>
-                      <td className="py-2 px-2 text-center font-mono">{row.scoreCommunication}</td>
-                      <td className="py-2 px-2 text-center font-mono">{row.scoreCompetence}</td>
-                      <td className="py-2 px-2 text-center font-mono">{row.scoreAttendance}</td>
-                      <td className="py-2 px-2 text-center font-mono">{row.scoreImprovisation}</td>
-                      <td className="py-2 px-3 text-center font-mono font-black text-indigo-600">{row.totalScore}</td>
-                      <td className="py-2 px-3">
-                        <div className="font-bold text-emerald-700">{row.grade}</div>
-                        <div className="text-[10px] text-amber-600 truncate max-w-[150px]">{row.rewardTitle}</div>
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-slate-200">
+                  {OFFICIAL_KPI_INDICATORS.map((ind, idx) => {
+                    const currentScore = Number(currentScores[ind.code]) || 0;
+                    const calculatedValue = Math.round((currentScore * (ind.weight / 100)) * 100) / 100;
+
+                    return (
+                      <tr
+                        key={ind.code}
+                        className={`hover:bg-blue-50/40 transition-colors ${
+                          ind.category === "Kinerja" ? "bg-white" : "bg-slate-50/40"
+                        }`}
+                      >
+                        {/* NO */}
+                        {ind.isFirstInGoal && (
+                          <td
+                            rowSpan={ind.rowSpanGoal}
+                            className="py-3 px-2 text-center font-bold text-slate-800 border-r border-slate-200 align-middle bg-slate-50/80"
+                          >
+                            {ind.no}
+                          </td>
+                        )}
+
+                        {/* KLP */}
+                        {ind.isFirstInCat && (
+                          <td
+                            rowSpan={ind.rowSpanCat}
+                            className={`py-3 px-3 text-center font-black border-r border-slate-200 align-middle ${
+                              ind.category === "Kinerja"
+                                ? "text-blue-700 bg-blue-50/40"
+                                : "text-purple-700 bg-purple-50/40"
+                            }`}
+                          >
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <span className="text-xs">{ind.category}</span>
+                              <span className="text-[10px] font-semibold opacity-75">(50%)</span>
+                            </div>
+                          </td>
+                        )}
+
+                        {/* Sasaran Kerja */}
+                        {ind.isFirstInGoal && (
+                          <td
+                            rowSpan={ind.rowSpanGoal}
+                            className="py-3 px-3 font-bold text-slate-800 border-r border-slate-200 align-middle leading-snug"
+                          >
+                            {ind.targetGoal}
+                          </td>
+                        )}
+
+                        {/* Kode */}
+                        <td className="py-3 px-2 text-center font-mono font-bold text-indigo-700 border-r border-slate-200 bg-slate-50/50">
+                          {ind.code}
+                        </td>
+
+                        {/* Ukuran Prestasi Kerja (Description) */}
+                        <td className="py-3 px-4 text-slate-700 border-r border-slate-200 leading-relaxed font-normal">
+                          {ind.description}
+                        </td>
+
+                        {/* Bobot */}
+                        <td className="py-3 px-3 text-center font-bold text-slate-800 border-r border-slate-200">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono text-xs">
+                            {ind.weightPercent}
+                          </span>
+                        </td>
+
+                        {/* Skor (Input diisi Kepsek) */}
+                        <td className="py-2.5 px-3 border-r border-slate-200 bg-amber-50/40 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={currentScore}
+                              onChange={(e) => handleScoreChange(ind.code, e.target.value)}
+                              className="w-16 px-2 py-1.5 text-center font-black text-sm text-slate-900 bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner"
+                            />
+                          </div>
+                        </td>
+
+                        {/* Nilai (Bobot * Skor) */}
+                        <td className="py-3 px-3 text-center font-mono font-black text-sm text-blue-800 bg-blue-50/30">
+                          {calculatedValue.toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
+
+                {/* TABLE FOOTER (TOTALS) */}
+                <tfoot>
+                  <tr className="bg-slate-900 text-white font-bold text-xs border-t-2 border-slate-950">
+                    <td colSpan={5} className="py-3.5 px-4 text-right uppercase tracking-wider text-slate-300">
+                      Total Akumulasi Bobot & Nilai Akhir KPI :
+                    </td>
+                    <td className="py-3.5 px-3 text-center font-mono font-black text-emerald-400 border-x border-slate-800">
+                      100%
+                    </td>
+                    <td className="py-3.5 px-3 text-center font-semibold text-slate-400 border-r border-slate-800 text-[11px]">
+                      (13 Butir)
+                    </td>
+                    <td className="py-3.5 px-3 text-center font-mono font-black text-base text-amber-400 bg-slate-950">
+                      {liveCalculation.totalScore.toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100 flex-shrink-0">
+            {/* EVALUATION NOTES & ACTIONS */}
+            <div className="p-5 bg-slate-50 border-t border-slate-200 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Catatan Supervisi, Umpan Balik & Rekomendasi Kepala Sekolah:
+                </label>
+                <textarea
+                  rows={2}
+                  value={evaluationNotes}
+                  onChange={(e) => setEvaluationNotes(e.target.value)}
+                  placeholder="Tuliskan catatan khusus terkait pencapaian modul ajar, diferensiasi kelas, kedisiplinan, atau apresiasi penghargaan yayasan..."
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                <div className="text-xs text-slate-500 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span>Tekan tombol <strong>"Simpan Nilai Guru Ini"</strong> untuk memperbarui rekapitulasi dan urutan peringkat guru.</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handlePrint()}
+                    className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-slate-500" /> Cetak Lembar Ini
+                  </button>
+                  <button
+                    onClick={handleSaveCurrentTeacherEvaluation}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition active:scale-95 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" /> Simpan Nilai Guru Ini
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: REKAPITULASI & PODIUM GURU BERPRESTASI */}
+      {/* ========================================================================= */}
+      {activeTab === "rekap" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* PODIUM TOP 3 GURU TELADAN */}
+          {rankedKpiList.length >= 3 && (
+            <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl border border-slate-800">
+              <div className="text-center max-w-xl mx-auto mb-6">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30 mb-2">
+                  <Trophy className="w-3.5 h-3.5" /> Podium Kehormatan Yayasan
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  Guru Teladan & Berprestasi Semester Ini
+                </h3>
+                <p className="text-xs text-slate-300 mt-1">
+                  Berdasarkan akumulasi nilai tertinggi 13 butir indikator Sasaran Kinerja & Perilaku.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end max-w-4xl mx-auto pt-2">
+                {/* JUARA 2 */}
+                {rankedKpiList[1] && (
+                  <div className="order-2 md:order-1 bg-slate-800/90 border border-slate-700/80 rounded-2xl p-5 text-center flex flex-col items-center relative hover:border-slate-500 transition shadow-lg">
+                    <div className="w-10 h-10 rounded-full bg-slate-300 text-slate-900 font-black text-base flex items-center justify-center mb-2 shadow-md">
+                      2
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Juara 2 Guru Inovatif</span>
+                    <h4 className="text-base font-bold text-white mt-1 leading-snug">{rankedKpiList[1].teacherName}</h4>
+                    <span className="text-xs text-slate-400">{rankedKpiList[1].rombel || "Guru"}</span>
+                    <div className="text-2xl font-black text-slate-200 mt-2">{Number(rankedKpiList[1].totalScore).toFixed(1)}</div>
+                    <span className="text-[11px] text-emerald-400 font-semibold mt-1">Uang Pembinaan Rp 1.000.000</span>
+                    <button
+                      onClick={() => {
+                        handleSelectTeacher(rankedKpiList[1].teacherId || rankedKpiList[1].id);
+                        setActiveTab("matrix");
+                      }}
+                      className="mt-3 text-xs text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer"
+                    >
+                      Buka Lembar Nilai →
+                    </button>
+                  </div>
+                )}
+
+                {/* JUARA 1 (CENTER HIGHER) */}
+                {rankedKpiList[0] && (
+                  <div className="order-1 md:order-2 bg-gradient-to-b from-amber-500/20 to-slate-800/90 border-2 border-amber-400/70 rounded-3xl p-6 text-center flex flex-col items-center relative -translate-y-2 hover:border-amber-300 transition shadow-2xl">
+                    <div className="absolute -top-3 px-3 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] tracking-wider uppercase shadow-md flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> JUARA 1 UTAMA
+                    </div>
+                    <div className="w-14 h-14 rounded-full bg-amber-400 text-slate-950 font-black text-xl flex items-center justify-center mb-2 shadow-xl ring-4 ring-amber-400/30">
+                      1
+                    </div>
+                    <span className="text-xs font-black text-amber-300 uppercase tracking-wider">Guru Teladan Nomor 1</span>
+                    <h4 className="text-lg font-extrabold text-white mt-1 leading-snug">{rankedKpiList[0].teacherName}</h4>
+                    <span className="text-xs text-slate-300">{rankedKpiList[0].rombel || "Guru"}</span>
+                    <div className="text-3xl font-black text-amber-300 mt-2">{Number(rankedKpiList[0].totalScore).toFixed(1)}</div>
+                    <span className="text-xs text-emerald-300 font-bold mt-1">Uang Pembinaan Rp 1.500.000 + Piagam</span>
+                    <button
+                      onClick={() => {
+                        handleSelectTeacher(rankedKpiList[0].teacherId || rankedKpiList[0].id);
+                        setActiveTab("matrix");
+                      }}
+                      className="mt-4 px-4 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl transition shadow-md cursor-pointer"
+                    >
+                      Buka Lembar Penilaian →
+                    </button>
+                  </div>
+                )}
+
+                {/* JUARA 3 */}
+                {rankedKpiList[2] && (
+                  <div className="order-3 bg-slate-800/90 border border-slate-700/80 rounded-2xl p-5 text-center flex flex-col items-center relative hover:border-slate-500 transition shadow-lg">
+                    <div className="w-10 h-10 rounded-full bg-amber-700 text-white font-black text-base flex items-center justify-center mb-2 shadow-md">
+                      3
+                    </div>
+                    <span className="text-[11px] font-bold text-amber-400/90 uppercase tracking-wider">Juara 3 Guru Inspiratif</span>
+                    <h4 className="text-base font-bold text-white mt-1 leading-snug">{rankedKpiList[2].teacherName}</h4>
+                    <span className="text-xs text-slate-400">{rankedKpiList[2].rombel || "Guru"}</span>
+                    <div className="text-2xl font-black text-slate-200 mt-2">{Number(rankedKpiList[2].totalScore).toFixed(1)}</div>
+                    <span className="text-[11px] text-emerald-400 font-semibold mt-1">Uang Pembinaan Rp 750.000</span>
+                    <button
+                      onClick={() => {
+                        handleSelectTeacher(rankedKpiList[2].teacherId || rankedKpiList[2].id);
+                        setActiveTab("matrix");
+                      }}
+                      className="mt-3 text-xs text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer"
+                    >
+                      Buka Lembar Nilai →
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* FILTER & SEARCH BAR */}
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="w-full md:w-80 relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nama guru, NIP, atau rombel..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 focus:bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                <Filter className="w-4 h-4 text-slate-500" />
+                <span className="text-xs font-medium text-slate-600">Predikat:</span>
+                <select
+                  value={filterGrade}
+                  onChange={(e) => setFilterGrade(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
+                >
+                  <option value="ALL">Semua Predikat</option>
+                  <option value="Sangat Memuaskan">Sangat Memuaskan (≥ 90)</option>
+                  <option value="Memuaskan">Memuaskan (80 - 89)</option>
+                  <option value="Cukup">Cukup (70 - 79)</option>
+                  <option value="Perlu Pembinaan">Perlu Pembinaan (&lt; 70)</option>
+                </select>
+              </div>
+
               <button
-                type="button"
-                onClick={() => setShowImportModal(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                onClick={handleExportExcel}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" /> Ekspor Tabel
+              </button>
+            </div>
+          </div>
+
+          {/* REKAPITULASI TABLE */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                  <Users className="w-5 h-5 text-blue-600" />
+                  Daftar Peringkat & Hasil Evaluasi KPI Seluruh Guru
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Menampilkan {filteredList.length} dari total {rankedKpiList.length} guru yang terdaftar dalam sistem evaluasi.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 uppercase font-black tracking-wider text-[11px] border-b border-slate-300">
+                    <th className="py-3 px-3 text-center w-12">Rank</th>
+                    <th className="py-3 px-4">Nama Guru & NIP</th>
+                    <th className="py-3 px-3">Rombel / Jabatan</th>
+                    <th className="py-3 px-3 text-center">Kinerja (50%)</th>
+                    <th className="py-3 px-3 text-center">Perilaku (50%)</th>
+                    <th className="py-3 px-3 text-center bg-indigo-50/60 text-indigo-900">Total Skor</th>
+                    <th className="py-3 px-3 text-center">Predikat Mutu</th>
+                    <th className="py-3 px-3">Apresiasi Yayasan</th>
+                    <th className="py-3 px-4 text-center w-36">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filteredList.length > 0 ? (
+                    filteredList.map((item, idx) => {
+                      const gradeInfo = getKpiGradeInfo(item.totalScore);
+                      return (
+                        <tr key={item.id} className="hover:bg-blue-50/30 transition-colors">
+                          <td className="py-3.5 px-3 text-center font-black text-slate-700">
+                            {idx === 0 && <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-950 inline-flex items-center justify-center font-bold text-xs shadow-sm">1</span>}
+                            {idx === 1 && <span className="w-6 h-6 rounded-full bg-slate-300 text-slate-900 inline-flex items-center justify-center font-bold text-xs shadow-sm">2</span>}
+                            {idx === 2 && <span className="w-6 h-6 rounded-full bg-amber-700 text-white inline-flex items-center justify-center font-bold text-xs shadow-sm">3</span>}
+                            {idx > 2 && <span className="text-slate-500">#{idx + 1}</span>}
+                          </td>
+                          <td className="py-3.5 px-4 font-bold text-slate-900">
+                            <div className="text-sm font-bold text-slate-900">{item.teacherName}</div>
+                            <div className="text-[11px] text-slate-500 font-normal">NIP: {item.teacherNip || "-"}</div>
+                          </td>
+                          <td className="py-3.5 px-3 text-slate-700 font-medium">
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px]">
+                              {item.rombel || item.teacherRole || "Guru"}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3 text-center font-mono font-bold text-blue-700">
+                            {Number(item.kinerjaScore || 0).toFixed(1)}
+                          </td>
+                          <td className="py-3.5 px-3 text-center font-mono font-bold text-purple-700">
+                            {Number(item.perilakuScore || 0).toFixed(1)}
+                          </td>
+                          <td className="py-3.5 px-3 text-center font-mono font-black text-sm text-indigo-700 bg-indigo-50/40">
+                            {Number(item.totalScore || 0).toFixed(1)}
+                          </td>
+                          <td className="py-3.5 px-3 text-center">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${gradeInfo.badge}`}>
+                              {gradeInfo.short}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3 text-slate-700 text-xs">
+                            <div className="font-bold text-emerald-700">{item.rewardTitle || "-"}</div>
+                            <div className="text-[11px] text-slate-500">{formatCurrency(item.rewardAmount)}</div>
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  handleSelectTeacher(item.teacherId || item.id);
+                                  setActiveTab("matrix");
+                                }}
+                                title="Buka Tabel 13 Indikator"
+                                className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition cursor-pointer"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handlePrint(item)}
+                                title="Cetak Lembar Resmi"
+                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-slate-500">
+                        Tidak ada data evaluasi yang sesuai dengan filter.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: STANDAR BAKU & BOBOT RESMI YAYASAN */}
+      {/* ========================================================================= */}
+      {activeTab === "rubrik" && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <div>
+              <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                Pedoman Operasional Standar (POS) Penilaian Kinerja Guru
+              </span>
+              <h3 className="text-xl font-bold text-slate-900 mt-1">
+                Struktur Pembobotan & 13 Butir Indikator Baku
+              </h3>
+              <p className="text-slate-600 text-sm leading-relaxed">
+                Penilaian KPI guru di lingkungan Yayasan Pendidikan Daarul Habibah & SDIT EL-FATAH mengacu pada 2 pilar utama dengan proporsi seimbang:
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50/40 rounded-2xl border border-blue-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-blue-900 text-base flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-blue-600" /> 1. Sasaran Kinerja (Bobot 50%)
+                  </h4>
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white font-black text-xs">7 Butir</span>
+                </div>
+                <p className="text-xs text-blue-800 leading-relaxed">
+                  Mengukur kompetensi teknis pedagogik dalam merancang Modul Ajar/ATP (01.00 & 01.01), pembelajaran berdiferensiasi & Projek P5 (02.01, 02.02, 02.03), serta pelaksanaan asesmen diagnostik & portofolio autentik (03.01 & 03.02).
+                </p>
+              </div>
+
+              <div className="p-5 bg-gradient-to-br from-purple-50 to-pink-50/40 rounded-2xl border border-purple-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-purple-900 text-base flex items-center gap-2">
+                    <Award className="w-5 h-5 text-purple-600" /> 2. Sasaran Perilaku (Bobot 50%)
+                  </h4>
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-600 text-white font-black text-xs">6 Butir</span>
+                </div>
+                <p className="text-xs text-purple-800 leading-relaxed">
+                  Mengukur nilai BerAKHLAK Islami: Amanah (04.02), Kompeten tuntas (05.02), Harmonis solutif (06.02), Loyal tepat waktu (07.02), Adaptif inovatif (08.02), dan Kolaboratif dengan wali murid/unit lain (09.02).
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200">
+              <h4 className="font-bold text-slate-900 text-sm mb-3">Daftar Rinci Seluruh 13 Butir Indikator:</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {OFFICIAL_KPI_INDICATORS.map((ind) => (
+                  <div key={ind.code} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
+                        Kode: {ind.code}
+                      </span>
+                      <span className="font-bold text-xs text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full">
+                        Bobot {ind.weightPercent}
+                      </span>
+                    </div>
+                    <div className="font-bold text-xs text-slate-900">{ind.targetGoal}</div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">{ind.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: IMPORT EXCEL */}
+      {/* ========================================================================= */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 shadow-2xl space-y-5 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-6 h-6 text-emerald-600" />
+                <h3 className="text-lg font-bold text-slate-900">Impor Penilaian dari File Excel (.xlsx)</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportPreviewData(null);
+                  setImportError(null);
+                  setImportNotice(null);
+                }}
+                className="text-slate-400 hover:text-slate-700 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800 space-y-2">
+                <p className="font-bold text-emerald-900">Petunjuk Impor Format Excel:</p>
+                <p>
+                  Sistem mendukung pembacaan file Excel format tabel 13 butir (seperti lampiran resmi) maupun file daftar rekapitulasi nilai guru.
+                </p>
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="inline-flex items-center gap-1 font-bold underline text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" /> Unduh Format Template Excel Baku (.xlsx)
+                </button>
+              </div>
+
+              {importError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              )}
+
+              {importNotice && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{importNotice}</span>
+                </div>
+              )}
+
+              <div className="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center space-y-3 bg-slate-50 hover:bg-slate-100/60 transition cursor-pointer">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center space-y-2"
+                >
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <div className="text-sm font-bold text-slate-800">
+                    Klik untuk memilih file Excel dari komputer
+                  </div>
+                  <div className="text-xs text-slate-500">Mendukung format .xlsx, .xls, dan .csv</div>
+                </div>
+              </div>
+
+              {importPreviewData && (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="text-xs font-bold text-slate-700">Pratinjau Data Terbaca:</div>
+                  <div className="text-xs text-slate-600">
+                    Siap menerapkan data penilaian ke dalam sistem.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportPreviewData(null);
+                }}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 Batal
               </button>
               <button
-                type="button"
                 onClick={handleApplyImport}
-                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition cursor-pointer active:scale-95"
+                disabled={!importPreviewData}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-md transition active:scale-95 cursor-pointer"
               >
-                <Check className="w-4 h-4" />
-                <span>Terapkan Sebagai Standar KPI Guru Yayasan</span>
+                Terapkan Data Penilaian
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 8. Form Modal Input/Edit Penilaian KPI */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      {/* ========================================================================= */}
+      {/* PRINT PREVIEW & ACTION MODAL */}
+      {/* ========================================================================= */}
+      {isPrintModalOpen && printTargetEvaluation && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto no-print">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-fade-in">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-200">
-                  <Award className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300">
+                  <Printer className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900">
-                    {editingItem ? "Edit Penilaian KPI Guru" : "Input Penilaian KPI Guru Baru"}
+                  <h3 className="text-base font-extrabold text-white">
+                    Cetak Lembar Penilaian KPI (13 Indikator)
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Sistem evaluasi berbasis 5 indikator baku dengan bobot tertimbang
+                  <p className="text-xs text-slate-300">
+                    Guru: {printTargetEvaluation.teacherName} ({printTargetEvaluation.rombel || "Guru SDIT EL-FATAH"})
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveForm} className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Pilih Guru / Tenaga Pendidik
-                  </label>
-                  <select
-                    value={formTeacherId}
-                    onChange={(e) => setFormTeacherId(e.target.value)}
-                    required
-                    disabled={!!editingItem}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {teachers.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.assignedRombel || t.role || "Guru"})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Periode Evaluasi
-                  </label>
-                  <select
-                    value={formPeriod}
-                    onChange={(e) => setFormPeriod(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="Semester Ganjil 2026/2027">Semester Ganjil 2026/2027</option>
-                    <option value="Semester Genap 2025/2026">Semester Genap 2025/2026</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Sliders for 5 Indicators */}
-              <div className="space-y-4 pt-2 border-t border-slate-100">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
-                  <span>Input Nilai 5 Indikator Standar</span>
-                  <span className="text-indigo-600 font-mono font-bold lowercase">skor 0 - 100</span>
-                </h4>
-
-                {/* Indikator 1 */}
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800">1. Jurnal Mengajar & Elemen Kerja Guru</span>
-                      <span className="ml-2 text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">Bobot 25%</span>
-                    </div>
-                    <span className="text-sm font-black font-mono text-indigo-700">{formScoreJournal}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="100"
-                    value={formScoreJournal}
-                    onChange={(e) => setFormScoreJournal(Number(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                  />
-                  <p className="text-[10px] text-slate-500">Kelengkapan elemen kerja jurnal, ketuntasan RPP/modul ajar, dan administrasi kelas.</p>
-                </div>
-
-                {/* Indikator 2 */}
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800">2. Komunikasi Prestasi Anak & Orang Tua</span>
-                      <span className="ml-2 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Bobot 20%</span>
-                    </div>
-                    <span className="text-sm font-black font-mono text-indigo-700">{formScoreCommunication}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="100"
-                    value={formScoreCommunication}
-                    onChange={(e) => setFormScoreCommunication(Number(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                  />
-                  <p className="text-[10px] text-slate-500">Proaktif membangun komunikasi dengan anak didik & wali murid terkait capaian belajar & karakter.</p>
-                </div>
-
-                {/* Indikator 3 */}
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800">3. Capaian Kompetensi Kurikulum Sekolah</span>
-                      <span className="ml-2 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">Bobot 30%</span>
-                    </div>
-                    <span className="text-sm font-black font-mono text-indigo-700">{formScoreCompetence}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="100"
-                    value={formScoreCompetence}
-                    onChange={(e) => setFormScoreCompetence(Number(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                  />
-                  <p className="text-[10px] text-slate-500">Ketercapaian target kurikulum, daya serap siswa, dan ketuntasan materi yang dipersyaratkan.</p>
-                </div>
-
-                {/* Indikator 4 */}
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800">4. Kehadiran Guru & Kedisiplinan</span>
-                      <span className="ml-2 text-[10px] font-black text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">Bobot 10%</span>
-                    </div>
-                    <span className="text-sm font-black font-mono text-indigo-700">{formScoreAttendance}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="100"
-                    value={formScoreAttendance}
-                    onChange={(e) => setFormScoreAttendance(Number(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                  />
-                  <p className="text-[10px] text-slate-500">Presensi fingerprint tepat waktu di kelas, apel pagi, rapat, dan agenda yayasan.</p>
-                </div>
-
-                {/* Indikator 5 */}
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800">5. Improvisasi & Inovasi KBM</span>
-                      <span className="ml-2 text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">Bobot 15%</span>
-                    </div>
-                    <span className="text-sm font-black font-mono text-indigo-700">{formScoreImprovisation}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="100"
-                    value={formScoreImprovisation}
-                    onChange={(e) => setFormScoreImprovisation(Number(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                  />
-                  <p className="text-[10px] text-slate-500">Kreativitas membuat media ajar, alat peraga, variasi ice-breaking dan metode pembelajaran menyenangkan.</p>
-                </div>
-              </div>
-
-              {/* Calculated Total Live Preview */}
-              <div className="p-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-slate-400">Total Skor Akhir Tertimbang:</span>
-                  <p className="text-2xl font-black text-amber-400 font-mono">{currentCalculatedScore}</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs text-slate-400">Predikat Kinerja:</span>
-                  <p className="text-xs font-bold text-emerald-300">
-                    {getKpiGradeInfo(currentCalculatedScore).label}
+            {/* Modal Body - Sheet Preview */}
+            <div className="p-6 overflow-y-auto space-y-4 bg-slate-100 flex-1">
+              <div className="bg-white p-6 sm:p-8 rounded-2xl shadow border border-slate-300 max-w-3xl mx-auto font-serif text-slate-900 space-y-4">
+                {/* KOP PREVIEW */}
+                <div className="text-center border-b-2 border-slate-900 pb-3">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-slate-800">
+                    YAYASAN PENDIDIKAN DAARUL HABIBAH
+                  </h2>
+                  <h1 className="text-lg font-black uppercase tracking-wider text-slate-950">
+                    SDIT EL-FATAH
+                  </h1>
+                  <p className="text-[10px] italic text-slate-600">
+                    Jl. Raya Kresek No. 12, Sukamulya, Kab. Tangerang, Banten 15610 | Email: sdit.elfatah@gmail.com
                   </p>
                 </div>
-              </div>
 
-              {/* Rewards & Notes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Gelar Juara / Penghargaan Yayasan
-                  </label>
-                  <input
-                    type="text"
-                    value={formRewardTitle}
-                    onChange={(e) => setFormRewardTitle(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
-                    placeholder="Contoh: Juara 1 Guru Teladan"
-                  />
+                <div className="text-center py-1">
+                  <h3 className="text-sm font-black underline uppercase text-slate-900">
+                    LEMBAR PENILAIAN INDIKATOR KINERJA GURU (KPI) RESMI
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    Tahun Ajaran 2026/2027 — Semester Ganjil
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nominal Hadiah / Uang Pembinaan (Rp)
-                  </label>
-                  <input
-                    type="number"
-                    value={formRewardAmount}
-                    onChange={(e) => setFormRewardAmount(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 font-mono"
-                  />
+                {/* INFO GURU */}
+                <div className="grid grid-cols-2 gap-3 text-xs border border-slate-400 p-3 rounded-lg bg-slate-50/50">
+                  <div className="space-y-1">
+                    <div><strong>Nama Guru:</strong> {printTargetEvaluation.teacherName}</div>
+                    <div><strong>NIPY:</strong> {printTargetEvaluation.teacherNip || "-"}</div>
+                    <div><strong>Jabatan:</strong> {printTargetEvaluation.teacherRole || "Guru Pengajar"}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div><strong>Rombel:</strong> {printTargetEvaluation.rombel || "-"}</div>
+                    <div><strong>Tanggal:</strong> {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</div>
+                    <div><strong>Penilai:</strong> Masykur Rohana, S.Sos (Kepala Sekolah)</div>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Catatan Apresiasi / Evaluasi Penilai
-                </label>
-                <textarea
-                  value={formNotes}
-                  onChange={(e) => setFormNotes(e.target.value)}
-                  rows={2}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
-                  placeholder="Catatan kelebihan dan rekomendasi pengembangan guru..."
-                />
-              </div>
+                {/* TABLE PREVIEW */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] border border-slate-400 border-collapse">
+                    <thead>
+                      <tr className="bg-slate-200 border-b border-slate-400 text-center font-bold text-slate-900">
+                        <th className="border border-slate-400 p-1 w-6">NO</th>
+                        <th className="border border-slate-400 p-1 w-14">KLP</th>
+                        <th className="border border-slate-400 p-1">Sasaran Kerja & Indikator</th>
+                        <th className="border border-slate-400 p-1 w-10">Kode</th>
+                        <th className="border border-slate-400 p-1 w-10">Bobot</th>
+                        <th className="border border-slate-400 p-1 w-10">Skor</th>
+                        <th className="border border-slate-400 p-1 w-12">Nilai</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {OFFICIAL_KPI_INDICATORS.map((ind) => {
+                        const scoreDict = printTargetEvaluation.subScores || currentScores;
+                        const s = Number(scoreDict[ind.code]) || 0;
+                        const val = Math.round((s * (ind.weight / 100)) * 100) / 100;
+                        return (
+                          <tr key={ind.code} className="border-b border-slate-300 hover:bg-blue-50/20">
+                            <td className="border border-slate-300 p-1 text-center font-bold">{ind.no}</td>
+                            <td className="border border-slate-300 p-1 text-center text-[10px]">{ind.category}</td>
+                            <td className="border border-slate-300 p-1">
+                              <span className="font-semibold text-slate-900">{ind.targetGoal}:</span> <span className="text-slate-700">{ind.description}</span>
+                            </td>
+                            <td className="border border-slate-300 p-1 text-center font-mono font-bold text-[10px]">{ind.code}</td>
+                            <td className="border border-slate-300 p-1 text-center font-medium">{ind.weightPercent}</td>
+                            <td className="border border-slate-300 p-1 text-center font-bold text-slate-900">{s}</td>
+                            <td className="border border-slate-300 p-1 text-center font-bold text-blue-900 bg-blue-50/30">{val.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-100 font-bold border-t-2 border-slate-800">
+                        <td colSpan={4} className="border border-slate-400 p-1.5 text-right uppercase text-slate-800">
+                          Total Akumulasi Bobot & Nilai Akhir :
+                        </td>
+                        <td className="border border-slate-400 p-1.5 text-center text-emerald-700 font-black">100%</td>
+                        <td className="border border-slate-400 p-1.5 text-center">-</td>
+                        <td className="border border-slate-400 p-1.5 text-center text-xs font-black text-blue-800 bg-blue-100">
+                          {Number(printTargetEvaluation.totalScore || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                      <tr className="bg-slate-100 font-bold">
+                        <td colSpan={4} className="border border-slate-400 p-1.5 text-right uppercase text-slate-800">
+                          Predikat Mutu & Status Apresiasi :
+                        </td>
+                        <td colSpan={3} className="border border-slate-400 p-1.5 text-center text-xs font-bold text-indigo-900">
+                          {printTargetEvaluation.grade || liveGradeInfo.short} — {printTargetEvaluation.rewardTitle || "Apresiasi Yayasan"}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg transition cursor-pointer active:scale-95"
-                >
-                  Simpan Penilaian KPI
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                {/* NOTES PREVIEW */}
+                <div className="border border-slate-400 p-2.5 rounded-lg text-xs bg-amber-50/40">
+                  <strong>Catatan & Rekomendasi Kepala Sekolah:</strong>
+                  <p className="italic mt-0.5 text-slate-700">
+                    "{printTargetEvaluation.notes || "Kinerja sangat baik dan memenuhi standar yayasan."}"
+                  </p>
+                </div>
 
-      {/* 9. Modal Piagam Penghargaan Resmi (Siap Cetak / Print) */}
-      {viewCertificate && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[95vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 print:hidden">
-              <div className="flex items-center gap-2">
-                <Award className="w-5 h-5 text-amber-500" />
-                <span className="font-bold text-sm text-slate-800">Pratinjau Piagam Penghargaan Resmi</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Cetak / Simpan PDF</span>
-                </button>
-                <button
-                  onClick={() => setViewCertificate(null)}
-                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                {/* SIGNATURES */}
+                <div className="pt-4 grid grid-cols-2 text-center text-xs">
+                  <div>
+                    <p>Guru yang Dinilai,</p>
+                    <div className="h-12 flex items-center justify-center font-mono text-[9px] text-slate-400">
+                      [ Tanda Tangan Digital ]
+                    </div>
+                    <p className="font-bold underline">{printTargetEvaluation.teacherName}</p>
+                    <p className="text-[10px] text-slate-600">NIPY. {printTargetEvaluation.teacherNip || "-"}</p>
+                  </div>
+                  <div>
+                    <p>Tangerang, {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</p>
+                    <p>Kepala Sekolah SDIT EL-FATAH,</p>
+                    <div className="h-12 flex items-center justify-center font-mono text-[9px] text-slate-400">
+                      [ CAP RESMI & TTD DIGITAL ]
+                    </div>
+                    <p className="font-bold underline">Masykur Rohana, S.Sos</p>
+                    <p className="text-[10px] text-slate-600">NIPY. 20190701</p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Sertifikat Resmi */}
-            <div className="border-8 border-double border-amber-600 p-8 sm:p-12 rounded-2xl bg-gradient-to-b from-amber-50/40 via-white to-amber-50/20 text-center relative overflow-hidden shadow-inner">
-              <div className="absolute top-4 left-4 w-12 h-12 border-t-2 border-l-2 border-amber-600 pointer-events-none" />
-              <div className="absolute top-4 right-4 w-12 h-12 border-t-2 border-r-2 border-amber-600 pointer-events-none" />
-              <div className="absolute bottom-4 left-4 w-12 h-12 border-b-2 border-l-2 border-amber-600 pointer-events-none" />
-              <div className="absolute bottom-4 right-4 w-12 h-12 border-b-2 border-r-2 border-amber-600 pointer-events-none" />
-
-              {/* Kop Yayasan */}
-              <div className="space-y-1 mb-6 border-b-2 border-amber-500/30 pb-4">
-                <h4 className="text-xs font-black tracking-widest uppercase text-slate-500">
-                  {foundationProfile?.name || "YAYASAN PENDIDIKAN DAARUL HABIBAH"}
-                </h4>
-                <h3 className="text-lg font-black text-slate-900 tracking-tight">
-                  SDIT EL-FATAH PAGELARAN
-                </h3>
-                <p className="text-[10px] text-slate-400">
-                  {foundationProfile?.address || "Jl. Raya Pagelaran, Pandeglang, Banten"}
-                </p>
+            {/* Modal Footer with Dual Actions */}
+            <div className="px-6 py-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-slate-500">
+                Pilih opsi cetak langsung ke printer fisik atau simpan sebagai format PDF.
               </div>
-
-              {/* Certificate Title */}
-              <div className="space-y-2 mb-6">
-                <div className="inline-block p-3 bg-amber-500/10 rounded-full border border-amber-500/20 mb-1">
-                  <Trophy className="w-8 h-8 text-amber-600 mx-auto" />
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-wider text-amber-800 uppercase">
-                  PIAGAM PENGHARGAAN
-                </h2>
-                <p className="text-xs text-slate-500 font-mono tracking-widest">
-                  Nomor: 088/PIAGAM-GURU/{viewCertificate.academicYear || "2026/2027"}
-                </p>
-              </div>
-
-              <p className="text-xs text-slate-600 mb-3">
-                Diberikan dengan penuh rasa bangga dan apresiasi setinggi-tingginya kepada:
-              </p>
-
-              {/* Nama Guru Penerima */}
-              <div className="my-4 pb-2 border-b-2 border-slate-300 inline-block px-8">
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 font-serif">
-                  {viewCertificate.teacherName}
-                </h3>
-                <p className="text-xs text-slate-500 font-mono mt-0.5">
-                  NIP / NIPY: {viewCertificate.teacherNip} • {viewCertificate.rombel}
-                </p>
-              </div>
-
-              {/* Gelar Penghargaan */}
-              <div className="my-4 space-y-1.5">
-                <p className="text-xs text-slate-600">Atas dedikasi luar biasa dan pencapaian prestasi sebagai:</p>
-                <div className="inline-block px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-sm rounded-xl shadow-md border border-amber-300">
-                  {viewCertificate.rewardTitle || "GURU TELADAN & BERPRESTASI"}
-                </div>
-                <p className="text-xs text-slate-700 font-medium max-w-md mx-auto pt-2">
-                  Berdasarkan Hasil Evaluasi Kinerja (KPI) Periode <strong>{viewCertificate.period}</strong> dengan Akumulasi Skor <strong>{viewCertificate.totalScore.toFixed(2)}</strong> (Predikat: <em>{viewCertificate.grade}</em>).
-                </p>
-                {viewCertificate.rewardAmount > 0 && (
-                  <p className="text-xs font-bold text-emerald-700 font-mono">
-                    Paket Apresiasi: {formatCurrency(viewCertificate.rewardAmount)}
-                  </p>
-                )}
-              </div>
-
-              {/* Tanda Tangan */}
-              <div className="grid grid-cols-2 gap-8 mt-12 pt-4 text-xs">
-                <div>
-                  <p className="text-slate-500">Mengetahui,</p>
-                  <p className="font-bold text-slate-800">Ketua Yayasan</p>
-                  <div className="h-16 flex items-center justify-center">
-                    <span className="text-slate-300 italic text-[11px] font-serif">[ Tanda Tangan & Cap ]</span>
-                  </div>
-                  <p className="font-black text-slate-900 underline">
-                    {foundationProfile?.leaderName || "Drs. H. M. Syukri, M.M"}
-                  </p>
-                  <p className="text-[10px] text-slate-500">Ketua Dewan Pembina Yayasan</p>
-                </div>
-
-                <div>
-                  <p className="text-slate-500">Pandeglang, {formatDate(viewCertificate.evaluationDate)}</p>
-                  <p className="font-bold text-slate-800">Kepala Sekolah SDIT EL-FATAH</p>
-                  <div className="h-16 flex items-center justify-center">
-                    <span className="text-slate-300 italic text-[11px] font-serif">[ Tanda Tangan ]</span>
-                  </div>
-                  <p className="font-black text-slate-900 underline">
-                    {foundationProfile?.headmasterName || "Masykur Rohana, S.Sos"}
-                  </p>
-                  <p className="text-[10px] text-slate-500">Kepala Satuan Pendidikan</p>
-                </div>
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => setIsPrintModalOpen(false)}
+                  className="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  onClick={handleExecutePrint}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-2 transition active:scale-95 cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" /> Cetak / Unduh PDF Sekarang
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* HIDDEN OFFICIAL PRINTABLE DOCUMENT (RENDERED ONLY ON PRINT) */}
+      {/* ========================================================================= */}
+      <div id="printable-kpi" className="hidden print:block font-serif text-black p-4 space-y-4 printable-area">
+        {/* KOP SURAT */}
+        <div className="text-center border-b-2 border-black pb-3">
+          <h2 className="text-base font-bold uppercase tracking-wide">
+            YAYASAN PENDIDIKAN DAARUL HABIBAH
+          </h2>
+          <h1 className="text-xl font-extrabold uppercase tracking-wide">
+            SDIT EL-FATAH
+          </h1>
+          <p className="text-[10pt] italic">
+            Jl. Raya Kresek No. 12, Sukamulya, Kab. Tangerang, Banten 15610 | Email: sdit.elfatah@gmail.com
+          </p>
+        </div>
+
+        <div className="text-center py-2">
+          <h3 className="text-base font-bold underline uppercase">
+            LEMBAR PENILAIAN INDIKATOR KINERJA GURU (KPI) RESMI
+          </h3>
+          <p className="text-[10pt]">
+            Tahun Ajaran 2026/2027 — Semester Ganjil
+          </p>
+        </div>
+
+        {/* IDENTITAS GURU */}
+        <div className="grid grid-cols-2 gap-4 text-[10pt] border border-black p-3">
+          <div>
+            <div><strong>Nama Guru:</strong> {printTargetEvaluation?.teacherName || selectedTeacherObj.name}</div>
+            <div><strong>NIPY:</strong> {printTargetEvaluation?.teacherNip || selectedTeacherObj.nip || "-"}</div>
+            <div><strong>Jabatan/Tugas:</strong> {printTargetEvaluation?.teacherRole || selectedTeacherObj.role || "Guru Pengajar"}</div>
+          </div>
+          <div>
+            <div><strong>Rombongan Belajar:</strong> {printTargetEvaluation?.rombel || selectedTeacherObj.gradeClass || "-"}</div>
+            <div><strong>Tanggal Penilaian:</strong> {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</div>
+            <div><strong>Pejabat Penilai:</strong> Masykur Rohana, S.Sos (Kepala Sekolah)</div>
+          </div>
+        </div>
+
+        {/* 13 INDICATOR TABLE */}
+        <table className="w-full text-left text-[9pt] border border-black border-collapse">
+          <thead>
+            <tr className="bg-slate-200 border-b border-black text-center font-bold">
+              <th className="border border-black p-1 w-8">NO</th>
+              <th className="border border-black p-1 w-16">KLP</th>
+              <th className="border border-black p-1 w-32">Sasaran Kerja</th>
+              <th className="border border-black p-1 w-12">Kode</th>
+              <th className="border border-black p-1">Ukuran Prestasi Kerja (Indikator)</th>
+              <th className="border border-black p-1 w-12">Bobot</th>
+              <th className="border border-black p-1 w-14">Skor</th>
+              <th className="border border-black p-1 w-14">Nilai</th>
+            </tr>
+          </thead>
+          <tbody>
+            {OFFICIAL_KPI_INDICATORS.map((ind) => {
+              const scoreDict = printTargetEvaluation?.subScores || currentScores;
+              const s = Number(scoreDict[ind.code]) || 0;
+              const val = Math.round((s * (ind.weight / 100)) * 100) / 100;
+              return (
+                <tr key={ind.code} className="border-b border-black">
+                  <td className="border border-black p-1 text-center font-bold">{ind.no}</td>
+                  <td className="border border-black p-1 text-center">{ind.category}</td>
+                  <td className="border border-black p-1 font-semibold">{ind.targetGoal}</td>
+                  <td className="border border-black p-1 text-center font-mono">{ind.code}</td>
+                  <td className="border border-black p-1 leading-snug">{ind.description}</td>
+                  <td className="border border-black p-1 text-center">{ind.weightPercent}</td>
+                  <td className="border border-black p-1 text-center font-bold">{s}</td>
+                  <td className="border border-black p-1 text-center font-bold">{val.toFixed(2)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-black font-bold">
+              <td colSpan={5} className="border border-black p-1.5 text-right uppercase">
+                Total Akumulasi Bobot & Nilai Akhir:
+              </td>
+              <td className="border border-black p-1.5 text-center">100%</td>
+              <td className="border border-black p-1.5 text-center">-</td>
+              <td className="border border-black p-1.5 text-center text-[10pt]">
+                {(printTargetEvaluation?.totalScore || liveCalculation.totalScore).toFixed(2)}
+              </td>
+            </tr>
+            <tr className="font-bold">
+              <td colSpan={5} className="border border-black p-1.5 text-right uppercase">
+                Predikat Mutu & Status Apresiasi:
+              </td>
+              <td colSpan={3} className="border border-black p-1.5 text-center text-[10pt]">
+                {printTargetEvaluation?.grade || liveGradeInfo.short} ({printTargetEvaluation?.rewardTitle || "Apresiasi Yayasan"})
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+
+        {/* CATATAN */}
+        <div className="border border-black p-2 text-[9pt]">
+          <strong>Catatan & Rekomendasi Kepala Sekolah:</strong>
+          <p className="italic mt-0.5">
+            "{printTargetEvaluation?.notes || evaluationNotes || "Kinerja sangat baik dan memenuhi standar yayasan."}"
+          </p>
+        </div>
+
+        {/* TANDA TANGAN */}
+        <div className="pt-6 grid grid-cols-2 text-center text-[10pt] break-inside-avoid">
+          <div>
+            <p>Guru yang Dinilai,</p>
+            <div className="h-16 flex items-center justify-center font-mono text-[8pt] text-slate-400">
+              [ Tanda Tangan Digital ]
+            </div>
+            <p className="font-bold underline">{printTargetEvaluation?.teacherName || selectedTeacherObj.name}</p>
+            <p className="text-[9pt]">NIPY. {printTargetEvaluation?.teacherNip || selectedTeacherObj.nip || "-"}</p>
+          </div>
+
+          <div>
+            <p>Tangerang, {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</p>
+            <p>Kepala Sekolah SDIT EL-FATAH,</p>
+            <div className="h-16 flex items-center justify-center font-mono text-[8pt] text-slate-400">
+              [ CAP RESMI & TTD DIGITAL ]
+            </div>
+            <p className="font-bold underline">Masykur Rohana, S.Sos</p>
+            <p className="text-[9pt]">NIPY. 20190701</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

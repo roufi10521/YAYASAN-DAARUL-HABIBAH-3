@@ -1,6 +1,6 @@
 {
   "name": "Sistem ERP & Keuangan SDIT El Fatah",
-  "description": "Sistem Informasi Manajemen ERP, Keuangan Non-Laba (ISAK 35), Transaksi SPP & BOS, Payroll SDM, ARKAS, SiPLah, E-Raport, dan Website Resmi SDIT El-Fatah Yayasan Pendidikan Daarul Habibah.",
+  "description": "Sistem Informasi Manajemen ERP, Keuangan Non-Laba (ISAK 35), Transaksi SPP & BOS, Payroll SDM, Sasaran Kerja Individu (SKI) Guru 100% & Eviden PDF, ARKAS, SiPLah, E-Raport, dan Website Resmi SDIT El-Fatah Yayasan Pendidikan Daarul Habibah.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

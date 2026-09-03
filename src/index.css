@@ -110,7 +110,7 @@ button {
     margin: 0 !important;
     padding: 0 !important;
   }
-  #printable-report, #printable-receipt, .printable-area {
+  #printable-report, #printable-receipt, #printable-kpi, .printable-area {
     width: 100% !important;
     max-width: 100% !important;
     box-shadow: none !important;
