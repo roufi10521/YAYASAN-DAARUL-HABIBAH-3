@@ -42,7 +42,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PERENCANAAN"
   },
   {
-    no: 1,
+    no: 2,
     group: "Kinerja",
     targetName: "Perencanaan Pembelajaran dalam jurnal",
     code: "01.01",
@@ -52,7 +52,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PERENCANAAN"
   },
   {
-    no: 2,
+    no: 3,
     group: "Kinerja",
     targetName: "Pelaksanaan Pembelajaran",
     code: "02.01",
@@ -62,7 +62,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PELAKSANAAN"
   },
   {
-    no: 2,
+    no: 4,
     group: "Kinerja",
     targetName: "Pelaksanaan Pembelajaran",
     code: "02.02",
@@ -72,7 +72,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PELAKSANAAN"
   },
   {
-    no: 2,
+    no: 5,
     group: "Kinerja",
     targetName: "Pelaksanaan Pembelajaran",
     code: "02.03",
@@ -82,7 +82,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PELAKSANAAN"
   },
   {
-    no: 3,
+    no: 6,
     group: "Kinerja",
     targetName: "Asesmen dan Evaluasi",
     code: "03.01",
@@ -92,7 +92,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "ASESMEN"
   },
   {
-    no: 3,
+    no: 7,
     group: "Kinerja",
     targetName: "Asesmen dan Evaluasi",
     code: "03.02",
@@ -102,7 +102,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "ASESMEN"
   },
   {
-    no: 4,
+    no: 8,
     group: "Perilaku",
     targetName: "Amanah - Berintegritas & dapat dipercaya",
     code: "04.02",
@@ -112,7 +112,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PERILAKU_AMANAH"
   },
   {
-    no: 5,
+    no: 9,
     group: "Perilaku",
     targetName: "Kompeten - Cakap pada bidang pelajaran",
     code: "05.02",
@@ -122,7 +122,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PERILAKU_KOMPETEN"
   },
   {
-    no: 6,
+    no: 10,
     group: "Perilaku",
     targetName: "Harmonis - Saling mendukung kegiatan",
     code: "06.02",
@@ -132,7 +132,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PERILAKU_HARMONIS"
   },
   {
-    no: 7,
+    no: 11,
     group: "Perilaku",
     targetName: "Loyal - Berkomitmen dan Berdedikasi",
     code: "07.02",
@@ -142,7 +142,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PERILAKU_LOYAL"
   },
   {
-    no: 8,
+    no: 12,
     group: "Perilaku",
     targetName: "Adaptif - Inovasi Berkesinambungan",
     code: "08.02",
@@ -152,7 +152,7 @@ export const DEFAULT_SKI_TEMPLATE = [
     category: "PERILAKU_ADAPTIF"
   },
   {
-    no: 9,
+    no: 13,
     group: "Perilaku",
     targetName: "Kolaboratif - Bekerja Sama",
     code: "09.02",
@@ -431,7 +431,7 @@ export default function SasaranKerjaIndividu(props = {}) {
         return matchCode || matchTarget || matchMeasure || matchNotes;
       }
       return true;
-    });
+    }).sort((a, b) => (a.no || 0) - (b.no || 0));
   }, [filterGroup, filterAttachment, searchQuery, currentTeacherEntries]);
 
   // Upload / Edit Modal State
@@ -842,7 +842,7 @@ export default function SasaranKerjaIndividu(props = {}) {
                   >
                     {/* NO */}
                     <td className="p-3 border-r border-slate-200 text-center font-bold text-slate-700 align-top">
-                      {item.no}
+                      {idx + 1}
                     </td>
 
                     {/* KLP */}
@@ -1361,11 +1361,11 @@ export default function SasaranKerjaIndividu(props = {}) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-400">
-                  {DEFAULT_SKI_TEMPLATE.map((item) => {
+                  {DEFAULT_SKI_TEMPLATE.map((item, idx) => {
                     const entry = currentTeacherEntries[item.code] || {};
                     return (
                       <tr key={item.code} className="align-top">
-                        <td className="p-2 border-r border-slate-900 text-center font-bold">{item.no}</td>
+                        <td className="p-2 border-r border-slate-900 text-center font-bold">{idx + 1}</td>
                         <td className="p-2 border-r border-slate-900 text-center font-semibold">{item.group}</td>
                         <td className="p-2 border-r border-slate-900 font-bold">{item.targetName}</td>
                         <td className="p-2 border-r border-slate-900 text-center font-mono font-bold">{item.code}</td>
