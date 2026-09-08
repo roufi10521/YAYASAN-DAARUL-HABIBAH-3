@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import ReactModule, { useState as fallbackUseState, useMemo as fallbackUseMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend
@@ -25,6 +25,7 @@ export interface Student {
 }
 
 interface SppAnalyticsChartProps {
+  React?: any;
   students?: Student[];
   onOpenNewTransaction?: () => void;
 }
@@ -54,7 +55,12 @@ const formatRupiah = (num: number) => {
   }).format(num);
 };
 
-export const SppAnalyticsChart: React.FC<SppAnalyticsChartProps> = ({ students = [] }) => {
+export const SppAnalyticsChart: React.FC<SppAnalyticsChartProps> = (props) => {
+  const { students = [] } = props;
+  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || ReactModule;
+  const useState = ActiveReact?.useState ? ActiveReact.useState.bind(ActiveReact) : fallbackUseState;
+  const useMemo = ActiveReact?.useMemo ? ActiveReact.useMemo.bind(ActiveReact) : fallbackUseMemo;
+
   const [selectedMonth, setSelectedMonth] = useState<string>('all'); // 'all' or month id like '08'
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [activeView, setActiveView] = useState<'grafik' | 'tabel_rekap' | 'daftar_siswa'>('grafik');
