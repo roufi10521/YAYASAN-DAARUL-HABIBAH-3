@@ -14,7 +14,54 @@ import {
   orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): FirestoreErrorInfo {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid || null,
+      email: auth?.currentUser?.email || null,
+      emailVerified: auth?.currentUser?.emailVerified || null,
+      isAnonymous: auth?.currentUser?.isAnonymous || null,
+      tenantId: auth?.currentUser?.tenantId || null,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error:', JSON.stringify(errInfo));
+  return errInfo;
+}
 
 export interface SyncStatus {
   isOnline: boolean;
@@ -54,7 +101,7 @@ export async function saveDocument(collectionName: string, docId: string, data: 
     }, { merge: true });
     return true;
   } catch (error) {
-    console.warn(`[Firestore] Gagal menyimpan dokumen ${collectionName}/${docId}:`, error);
+    handleFirestoreError(error, OperationType.WRITE, `${collectionName}/${docId}`);
     return false;
   }
 }
@@ -72,7 +119,7 @@ export async function getCollectionDocs<T = any>(collectionName: string): Promis
     });
     return items;
   } catch (error) {
-    console.warn(`[Firestore] Gagal mengambil koleksi ${collectionName}:`, error);
+    handleFirestoreError(error, OperationType.LIST, collectionName);
     return [];
   }
 }
@@ -86,7 +133,7 @@ export async function deleteDocument(collectionName: string, docId: string): Pro
     await deleteDoc(docRef);
     return true;
   } catch (error) {
-    console.warn(`[Firestore] Gagal menghapus dokumen ${collectionName}/${docId}:`, error);
+    handleFirestoreError(error, OperationType.DELETE, `${collectionName}/${docId}`);
     return false;
   }
 }
@@ -108,12 +155,12 @@ export function subscribeToCollection<T = any>(
       });
       onUpdate(items);
     }, (err) => {
-      console.warn(`[Firestore] Snapshot error pada ${collectionName}:`, err);
+      handleFirestoreError(err, OperationType.GET, collectionName);
       if (onError) onError(err);
     });
     return unsub;
   } catch (error) {
-    console.warn(`[Firestore] Setup subscriber error pada ${collectionName}:`, error);
+    handleFirestoreError(error, OperationType.GET, collectionName);
     return () => {};
   }
 }

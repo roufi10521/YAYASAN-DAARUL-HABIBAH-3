@@ -1,4 +1,4 @@
-import ReactModule, { useState as fallbackUseState, useMemo as fallbackUseMemo, useRef as fallbackUseRef } from "react";
+import React, { useState as fallbackUseState, useMemo as fallbackUseMemo, useRef as fallbackUseRef } from "react";
 import * as XLSX from "xlsx";
 import {
   Trophy,
@@ -47,7 +47,7 @@ export const initialKpiEvaluations = INITIAL_OFFICIAL_EVALUATIONS;
 export const KPI_INDICATOR_STANDARDS = OFFICIAL_KPI_INDICATORS;
 
 export default function KpiEvaluationModule(props = {}) {
-  const ActiveReact = props?.React || (typeof window !== "undefined" && window.__AppReact) || ReactModule;
+  const ActiveReact = props?.React || (typeof window !== "undefined" && window.__AppReact) || React;
   const useState = ActiveReact.useState || fallbackUseState;
   const useMemo = ActiveReact.useMemo || fallbackUseMemo;
   const useRef = ActiveReact.useRef || fallbackUseRef;

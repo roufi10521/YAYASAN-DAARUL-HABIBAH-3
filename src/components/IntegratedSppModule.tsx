@@ -1,4 +1,4 @@
-import ReactModule, { useState as fallbackUseState, useMemo as fallbackUseMemo } from 'react';
+import React, { useState as fallbackUseState, useMemo as fallbackUseMemo } from 'react';
 import {
   Coins,
   CheckCircle2,
@@ -68,7 +68,7 @@ export const IntegratedSppModule: React.FC<IntegratedSppModuleProps> = (props) =
     currentRole
   } = props;
 
-  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || ReactModule;
+  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || React;
   const useState = ActiveReact?.useState ? ActiveReact.useState.bind(ActiveReact) : fallbackUseState;
   const useMemo = ActiveReact?.useMemo ? ActiveReact.useMemo.bind(ActiveReact) : fallbackUseMemo;
 

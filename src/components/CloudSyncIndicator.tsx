@@ -1,4 +1,4 @@
-import ReactModule, { useState as fallbackUseState } from 'react';
+import React, { useState as fallbackUseState } from 'react';
 import { Cloud, CloudCheck, RefreshCw, AlertCircle, Database, Check } from 'lucide-react';
 import { syncLocalBatchToFirestore, COLLECTIONS } from '../services/firestoreSync';
 
@@ -24,7 +24,7 @@ export const CloudSyncIndicator: React.FC<CloudSyncIndicatorProps> = (props) => 
     onSyncComplete
   } = props;
 
-  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || ReactModule;
+  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || React;
   const useState = ActiveReact?.useState ? ActiveReact.useState.bind(ActiveReact) : fallbackUseState;
 
   const [isSyncing, setIsSyncing] = useState(false);

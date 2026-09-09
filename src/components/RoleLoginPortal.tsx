@@ -1,4 +1,4 @@
-import ReactModule, { useState as fallbackUseState } from 'react';
+import React, { useState as fallbackUseState } from 'react';
 import {
   Shield,
   GraduationCap,
@@ -144,7 +144,7 @@ export const RoleLoginPortal: React.FC<RoleLoginPortalProps> = (props) => {
     isModal = false,
   } = props;
 
-  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || ReactModule;
+  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || React;
   const useState = ActiveReact?.useState ? ActiveReact.useState.bind(ActiveReact) : fallbackUseState;
 
   const [selectedRoleKey, setSelectedRoleKey] = useState<string>(currentRole || 'KEPALA_SEKOLAH');
@@ -298,7 +298,10 @@ export const RoleLoginPortal: React.FC<RoleLoginPortalProps> = (props) => {
         <div className="bg-slate-800/80 rounded-2xl p-5 border border-slate-700 flex flex-col md:flex-row items-center justify-between gap-5">
           <div className="flex items-center gap-3">
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${roleInfo.badgeColor} shadow`}>
-              {React.createElement(roleInfo.icon, { className: 'w-6 h-6' })}
+              {(() => {
+                const SelectedRoleIcon = roleInfo.icon;
+                return SelectedRoleIcon ? <SelectedRoleIcon className="w-6 h-6" /> : null;
+              })()}
             </div>
             <div>
               <div className="flex items-center gap-2">

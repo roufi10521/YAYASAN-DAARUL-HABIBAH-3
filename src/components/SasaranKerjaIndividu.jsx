@@ -1,4 +1,4 @@
-import ReactModule, {
+import React, {
   useState as fallbackUseState,
   useEffect as fallbackUseEffect,
   useMemo as fallbackUseMemo,
@@ -164,7 +164,7 @@ export const DEFAULT_SKI_TEMPLATE = [
 ];
 
 export default function SasaranKerjaIndividu(props = {}) {
-  const ActiveReact = props?.React || (typeof window !== "undefined" && window.__AppReact) || ReactModule;
+  const ActiveReact = props?.React || (typeof window !== "undefined" && window.__AppReact) || React;
   const useState = ActiveReact?.useState ? ActiveReact.useState.bind(ActiveReact) : fallbackUseState;
   const useEffect = ActiveReact?.useEffect ? ActiveReact.useEffect.bind(ActiveReact) : fallbackUseEffect;
   const useMemo = ActiveReact?.useMemo ? ActiveReact.useMemo.bind(ActiveReact) : fallbackUseMemo;

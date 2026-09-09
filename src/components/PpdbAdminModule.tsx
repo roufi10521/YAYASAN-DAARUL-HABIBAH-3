@@ -1,4 +1,4 @@
-import ReactModule, { useState as fallbackUseState } from 'react';
+import React, { useState as fallbackUseState } from 'react';
 import {
   Users,
   Search,
@@ -66,7 +66,7 @@ export const PpdbAdminModule: React.FC<PpdbAdminModuleProps> = (props) => {
     currentRole
   } = props;
 
-  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || ReactModule;
+  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || React;
   const useState = ActiveReact?.useState ? ActiveReact.useState.bind(ActiveReact) : fallbackUseState;
 
   const [searchQuery, setSearchQuery] = useState('');

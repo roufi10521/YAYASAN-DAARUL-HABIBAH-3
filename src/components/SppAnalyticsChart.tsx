@@ -1,4 +1,4 @@
-import ReactModule, { useState as fallbackUseState, useMemo as fallbackUseMemo } from 'react';
+import React, { useState as fallbackUseState, useMemo as fallbackUseMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend
@@ -57,7 +57,7 @@ const formatRupiah = (num: number) => {
 
 export const SppAnalyticsChart: React.FC<SppAnalyticsChartProps> = (props) => {
   const { students = [] } = props;
-  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || ReactModule;
+  const ActiveReact = props?.React || (typeof window !== "undefined" && (window as any).__AppReact) || React;
   const useState = ActiveReact?.useState ? ActiveReact.useState.bind(ActiveReact) : fallbackUseState;
   const useMemo = ActiveReact?.useMemo ? ActiveReact.useMemo.bind(ActiveReact) : fallbackUseMemo;
 
